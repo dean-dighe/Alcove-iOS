@@ -75,9 +75,9 @@ class LoginVC: UIViewController {
     return imageView
   }()
 
-  fileprivate lazy var amperfyLabel: UILabel = {
+  fileprivate lazy var brandLabel: UILabel = {
     let label = UILabel()
-    label.text = "Amperfy"
+    label.text = "Alcove"
     label.font = .systemFont(ofSize: 50, weight: .bold)
     label.textColor = .tintColor
     label.tintColor = appDelegate.storage.settings.accounts.getSetting(nil).read.themePreference
@@ -115,25 +115,25 @@ class LoginVC: UIViewController {
     login()
   }
 
-  fileprivate lazy var usernameTF: UITextField = {
+  fileprivate lazy var emailTF: UITextField = {
     let textField = UITextField()
     textField.configuteForLogin(image: .userPerson)
-    textField.placeholder = "Username"
-    textField.textContentType = .username
-    textField.keyboardType = .default
+    textField.placeholder = "Email"
+    textField.textContentType = .emailAddress
+    textField.keyboardType = .emailAddress
     textField.autocorrectionType = .no
     textField.autocapitalizationType = .none
     textField.addTarget(
       self,
-      action: #selector(Self.usernameActionPressed),
+      action: #selector(Self.emailActionPressed),
       for: .primaryActionTriggered
     )
     return textField
   }()
 
   @IBAction
-  func usernameActionPressed() {
-    usernameTF.resignFirstResponder()
+  func emailActionPressed() {
+    emailTF.resignFirstResponder()
     login()
   }
 
@@ -224,62 +224,47 @@ class LoginVC: UIViewController {
   @IBAction
   func loginPressed() {
     serverUrlTF.resignFirstResponder()
-    usernameTF.resignFirstResponder()
+    emailTF.resignFirstResponder()
     passwordTF.resignFirstResponder()
     login()
   }
 
+  /// Email and password, and nothing else.
+  ///
+  /// Upstream asks for a server URL, a username, a password, an API flavour
+  /// and optional HTTP headers, because it talks to whatever server you point
+  /// it at. This build talks to one server, over Subsonic, and identity comes
+  /// from Unimatrix, so all of that is derived rather than typed. The fields
+  /// for it still exist above but are no longer part of the form.
   public lazy var formView: UIView = {
-    self.serverUrlTF.translatesAutoresizingMaskIntoConstraints = false
-    self.usernameTF.translatesAutoresizingMaskIntoConstraints = false
+    self.emailTF.translatesAutoresizingMaskIntoConstraints = false
     self.passwordTF.translatesAutoresizingMaskIntoConstraints = false
-    apiLabel.translatesAutoresizingMaskIntoConstraints = false
-    self.apiSelectorButton.translatesAutoresizingMaskIntoConstraints = false
-    self.httpHeadersButton.translatesAutoresizingMaskIntoConstraints = false
 
     let view = UIView()
-    view.addSubview(serverUrlTF)
-    view.addSubview(usernameTF)
+    view.addSubview(emailTF)
     view.addSubview(passwordTF)
-    view.addSubview(apiLabel)
-    view.addSubview(apiSelectorButton)
-    view.addSubview(httpHeadersButton)
 
     let padding: CGFloat = 0
     let elementHeight: CGFloat = 40
     let spaceInBetween: CGFloat = 15
 
     NSLayoutConstraint.activate([
-      serverUrlTF.safeAreaLayoutGuide.topAnchor.constraint(
+      emailTF.safeAreaLayoutGuide.topAnchor.constraint(
         equalTo: view.safeAreaLayoutGuide.topAnchor,
         constant: padding
       ),
-      serverUrlTF.safeAreaLayoutGuide.leadingAnchor.constraint(
+      emailTF.safeAreaLayoutGuide.leadingAnchor.constraint(
         equalTo: view.safeAreaLayoutGuide.leadingAnchor,
         constant: padding
       ),
-      serverUrlTF.safeAreaLayoutGuide.trailingAnchor.constraint(
+      emailTF.safeAreaLayoutGuide.trailingAnchor.constraint(
         equalTo: view.safeAreaLayoutGuide.trailingAnchor,
         constant: -padding
       ),
-      serverUrlTF.heightAnchor.constraint(equalToConstant: elementHeight),
-
-      usernameTF.safeAreaLayoutGuide.topAnchor.constraint(
-        equalTo: serverUrlTF.bottomAnchor,
-        constant: spaceInBetween
-      ),
-      usernameTF.safeAreaLayoutGuide.leadingAnchor.constraint(
-        equalTo: view.safeAreaLayoutGuide.leadingAnchor,
-        constant: padding
-      ),
-      usernameTF.safeAreaLayoutGuide.trailingAnchor.constraint(
-        equalTo: view.safeAreaLayoutGuide.trailingAnchor,
-        constant: -padding
-      ),
-      usernameTF.heightAnchor.constraint(equalToConstant: elementHeight),
+      emailTF.heightAnchor.constraint(equalToConstant: elementHeight),
 
       passwordTF.safeAreaLayoutGuide.topAnchor.constraint(
-        equalTo: usernameTF.bottomAnchor,
+        equalTo: emailTF.bottomAnchor,
         constant: spaceInBetween
       ),
       passwordTF.safeAreaLayoutGuide.leadingAnchor.constraint(
@@ -292,42 +277,8 @@ class LoginVC: UIViewController {
       ),
       passwordTF.heightAnchor.constraint(equalToConstant: elementHeight),
 
-      apiLabel.safeAreaLayoutGuide.topAnchor.constraint(
-        equalTo: passwordTF.bottomAnchor,
-        constant: spaceInBetween
-      ),
-      apiLabel.safeAreaLayoutGuide.leadingAnchor.constraint(
-        equalTo: view.safeAreaLayoutGuide.leadingAnchor,
-        constant: padding
-      ),
-      apiLabel.heightAnchor.constraint(equalToConstant: elementHeight),
-
-      apiSelectorButton.safeAreaLayoutGuide.topAnchor.constraint(
-        equalTo: passwordTF.bottomAnchor,
-        constant: spaceInBetween
-      ),
-      apiSelectorButton.safeAreaLayoutGuide.trailingAnchor.constraint(
-        equalTo: view.safeAreaLayoutGuide.trailingAnchor,
-        constant: -padding
-      ),
-      apiSelectorButton.heightAnchor.constraint(equalToConstant: elementHeight),
-
-      httpHeadersButton.safeAreaLayoutGuide.topAnchor.constraint(
-        equalTo: apiSelectorButton.bottomAnchor,
-        constant: spaceInBetween
-      ),
-      httpHeadersButton.safeAreaLayoutGuide.leadingAnchor.constraint(
-        equalTo: view.safeAreaLayoutGuide.leadingAnchor,
-        constant: padding
-      ),
-      httpHeadersButton.safeAreaLayoutGuide.trailingAnchor.constraint(
-        equalTo: view.safeAreaLayoutGuide.trailingAnchor,
-        constant: -padding
-      ),
-      httpHeadersButton.heightAnchor.constraint(equalToConstant: elementHeight),
-
       view.heightAnchor
-        .constraint(equalToConstant: (5 * elementHeight) + (4 * spaceInBetween) + (2 * padding)),
+        .constraint(equalToConstant: (2 * elementHeight) + spaceInBetween + (2 * padding)),
     ])
 
     return view
@@ -406,18 +357,14 @@ class LoginVC: UIViewController {
     loginButton
   }()
 
+  /// Key under which the last email is remembered, so a returning user only
+  /// types a password. The password itself is never stored here.
+  static let lastEmailKey = "alcove.lastEmail"
+
   func login() {
-    guard let serverUrl = serverUrlTF.text?.trimmingCharacters(in: .whitespacesAndNewlines),
-          !serverUrl.isEmpty else {
-      showErrorMsg(message: "No server URL given!")
-      return
-    }
-    guard serverUrl.isHyperTextProtocolProvided else {
-      showErrorMsg(message: "Please provide either 'https://' or 'http://' in your server URL.")
-      return
-    }
-    guard let username = usernameTF.text, !username.isEmpty else {
-      showErrorMsg(message: "No username given!")
+    guard let email = emailTF.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !email.isEmpty else {
+      showErrorMsg(message: "No email given!")
       return
     }
     guard let password = passwordTF.text, !password.isEmpty else {
@@ -425,21 +372,31 @@ class LoginVC: UIViewController {
       return
     }
 
-    var credentials = LoginCredentials(serverUrl: serverUrl, username: username, password: password)
-    credentials.httpHeaders = httpHeaders
-    var accountInfo = Account.createInfo(credentials: credentials)
-
-    guard !appDelegate.storage.settings.accounts.allAccounts.contains(where: { $0 == accountInfo })
-    else {
-      showErrorMsg(message: "Account already added!")
-      return
-    }
-
     Task { @MainActor in
+      // Unimatrix decides who this is, and hands back the server, the Subsonic
+      // username and the password to use. Everything past this point is stock
+      // Amperfy working with credentials it would have got from the old form.
+      let credentials: LoginCredentials
       do {
+        credentials = try await AlcoveAuth.signIn(email: email, password: password)
+      } catch {
+        self.showErrorMsg(message: error.localizedDescription)
+        return
+      }
+
+      var accountInfo = Account.createInfo(credentials: credentials)
+      guard !self.appDelegate.storage.settings.accounts.allAccounts
+        .contains(where: { $0 == accountInfo })
+      else {
+        self.showErrorMsg(message: "Account already added!")
+        return
+      }
+
+      do {
+        var credentials = credentials
         let meta = self.appDelegate.getMeta(accountInfo)
         let authenticatedApiType = try await meta.backendApi.login(
-          apiType: selectedApiType,
+          apiType: .subsonic,
           credentials: credentials
         )
         credentials.backendApi = authenticatedApiType
@@ -450,6 +407,8 @@ class LoginVC: UIViewController {
         self.appDelegate.storage.settings.accounts.login(credentials)
         meta.backendApi.provideCredentials(credentials: credentials)
 
+        UserDefaults.standard.set(email, forKey: Self.lastEmailKey)
+
         self.appDelegate.notificationHandler.post(name: .accountAdded, object: nil, userInfo: nil)
         self.appDelegate.notificationHandler.post(
           name: .accountActiveChanged,
@@ -459,7 +418,7 @@ class LoginVC: UIViewController {
         AmperfyAppShortcuts.updateAppShortcutParameters()
 
         let syncVC = AppStoryboard.Main.segueToSync(account: meta.account)
-        if let rootVC = presentingViewController {
+        if let rootVC = self.presentingViewController {
           syncVC.modalPresentationStyle = self.modalPresentationStyle
           rootVC.dismiss(animated: false) {
             rootVC.present(syncVC, animated: false)
@@ -512,12 +471,12 @@ class LoginVC: UIViewController {
 
     view.backgroundColor = .systemBackground
 
-    amperfyLabel.translatesAutoresizingMaskIntoConstraints = false
+    brandLabel.translatesAutoresizingMaskIntoConstraints = false
     iconView.translatesAutoresizingMaskIntoConstraints = false
     formGlassContainer.translatesAutoresizingMaskIntoConstraints = false
     loginGlassContainer.translatesAutoresizingMaskIntoConstraints = false
     closeButton.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(amperfyLabel)
+    view.addSubview(brandLabel)
     view.addSubview(iconView)
     view.addSubview(formGlassContainer)
     view.addSubview(loginGlassContainer)
@@ -546,9 +505,9 @@ class LoginVC: UIViewController {
       constant: 0
     ))
     NSLayoutConstraint.activate([
-      amperfyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor, constant: 0),
-      amperfyLabel.bottomAnchor.constraint(equalTo: formGlassContainer.topAnchor, constant: -30),
-      amperfyLabel.heightAnchor.constraint(equalToConstant: 60),
+      brandLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor, constant: 0),
+      brandLabel.bottomAnchor.constraint(equalTo: formGlassContainer.topAnchor, constant: -30),
+      brandLabel.heightAnchor.constraint(equalToConstant: 60),
 
       formGlassContainer.centerXAnchor.constraint(equalTo: view.centerXAnchor, constant: 0),
       formGlassContainer.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 0),
@@ -619,11 +578,11 @@ class LoginVC: UIViewController {
 
   override func viewIsAppearing(_ animated: Bool) {
     super.viewIsAppearing(animated)
-    if let credentials = appDelegate.storage.settings.accounts.getSetting(nil).read
-      .loginCredentials {
-      serverUrlTF.text = credentials.serverUrl
-      usernameTF.text = credentials.username
-      httpHeaders = credentials.httpHeaders
+    // The stored credentials hold the Subsonic username, which is not what is
+    // typed here any more, so the email is remembered separately.
+    if emailTF.text?.isEmpty ?? true,
+       let last = UserDefaults.standard.string(forKey: Self.lastEmailKey) {
+      emailTF.text = last
     }
   }
 
