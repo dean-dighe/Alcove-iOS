@@ -271,10 +271,18 @@ public enum ThemePreference: Int, CaseIterable, Sendable, Codable {
 
   public static let defaultValue: ThemePreference = .blue
 
+  /// The Unimatrix accent, the same #3EA6FF the request and manage pages use.
+  /// It replaces systemBlue rather than adding a case, so settings already
+  /// stored against raw value 0 keep working and the app is tinted with it
+  /// everywhere by default.
+  private static let alcoveAccent = UIColor(
+    red: 0x3E / 255, green: 0xA6 / 255, blue: 0xFF / 255, alpha: 1
+  )
+
   public var description: String {
     switch self {
     case .blue:
-      return "Blue"
+      return "Alcove"
     case .green:
       return "Green"
     case .red:
@@ -291,7 +299,7 @@ public enum ThemePreference: Int, CaseIterable, Sendable, Codable {
   public var asSwiftUIColor: Color {
     switch self {
     case .blue:
-      return .blue
+      return Color(Self.alcoveAccent)
     case .green:
       return .green
     case .red:
@@ -308,7 +316,7 @@ public enum ThemePreference: Int, CaseIterable, Sendable, Codable {
   public var asColor: UIColor {
     switch self {
     case .blue:
-      return .systemBlue
+      return Self.alcoveAccent
     case .green:
       return .systemGreen
     case .red:
