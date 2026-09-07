@@ -20,6 +20,7 @@
 //
 
 import AmperfyKit
+import SwiftUI
 import UIKit
 
 // MARK: - TabBarVC
@@ -28,6 +29,8 @@ class TabBarVC: UITabBarController {
   private var libraryGroup: UITabGroup?
   private var searchTab: UISearchTab?
   private var homeTab: UITab?
+  private var requestTab: UITab?
+  private var manageTab: UITab?
   private let account: Account
 
   init(account: Account) {
@@ -66,6 +69,35 @@ class TabBarVC: UITabBarController {
       )
     }
     fixTabs.append(homeTab!)
+
+    // Alcove's own tabs. They talk to the request and manage API rather than
+    // to Subsonic, so they need the identity the user signed in with; the
+    // media server password is the same one, kept in step server side.
+    configureAlcoveSession()
+
+    requestTab = UITab(
+      title: "Request",
+      image: UIImage(systemName: "plus.magnifyingglass"),
+      identifier: "Tabs.Request"
+    ) { _ in
+      let vc = UIHostingController(rootView: RequestView())
+      vc.title = "Request"
+      return UINavigationController(rootViewController: vc)
+    }
+    requestTab!.allowsHiding = true
+    fixTabs.append(requestTab!)
+
+    manageTab = UITab(
+      title: "Manage",
+      image: UIImage(systemName: "slider.horizontal.3"),
+      identifier: "Tabs.Manage"
+    ) { _ in
+      let vc = UIHostingController(rootView: ManageView())
+      vc.title = "Manage"
+      return UINavigationController(rootViewController: vc)
+    }
+    manageTab!.allowsHiding = true
+    fixTabs.append(manageTab!)
 
     var libraryTabs = [UITab]()
     let libraryTabsShown = appDelegate.storage.settings.accounts
@@ -240,6 +272,22 @@ class TabBarVC: UITabBarController {
     guard let libraryGroup else { return }
     libraryGroup.managingNavigationController?.pushViewController(vc, animated: true)
     selectedTab = libraryGroup
+  }
+}
+
+extension TabBarVC {
+  /// Give the Alcove API the credentials it needs to mint its own tokens.
+  ///
+  /// The email is not part of the stored credentials, which hold the Subsonic
+  /// username instead, so it is remembered separately at sign in. Without it
+  /// the two tabs cannot authenticate and say so rather than failing silently.
+  fileprivate func configureAlcoveSession() {
+    guard let credentials = appDelegate.storage.settings.accounts.getSetting(nil).read
+      .loginCredentials,
+      let email = UserDefaults.standard.string(forKey: LoginVC.lastEmailKey),
+      !email.isEmpty, !credentials.password.isEmpty
+    else { return }
+    AlcoveSession.shared.configure(email: email, password: credentials.password)
   }
 }
 

@@ -56,8 +56,24 @@ public enum AlcoveAuth {
     return (data, http)
   }
 
+  /// Exchange an email and password for a Supabase access token, with the
+  /// lifetime the provider reports so callers can renew before it lapses.
+  public static func accessToken(
+    email: String,
+    password: String
+  ) async throws -> (token: String, expiresIn: TimeInterval) {
+    try await tokenWithExpiry(email: email, password: password)
+  }
+
   /// Exchange an email and password for a Supabase access token.
   private static func token(email: String, password: String) async throws -> String {
+    try await tokenWithExpiry(email: email, password: password).token
+  }
+
+  private static func tokenWithExpiry(
+    email: String,
+    password: String
+  ) async throws -> (token: String, expiresIn: TimeInterval) {
     guard let url = URL(string: "\(supabaseUrl)/auth/v1/token?grant_type=password") else {
       throw AlcoveAuthError.unreachable
     }
@@ -76,7 +92,9 @@ public enum AlcoveAuth {
         ?? "Sign in failed"
       throw AlcoveAuthError.badCredentials(msg)
     }
-    return access
+    // Supabase reports this in seconds; an hour is its usual default.
+    let ttl = (json?["expires_in"] as? Double) ?? 3600
+    return (access, ttl)
   }
 
   /// Push this password to the music server so the Subsonic calls below
@@ -111,9 +129,15 @@ public enum AlcoveAuth {
   /// Sign in and produce credentials the existing backend code can use
   /// unchanged. Everything downstream of this stays stock Amperfy.
   public static func signIn(email: String, password: String) async throws -> LoginCredentials {
-    let access = try await token(email: email, password: password)
+    let minted = try await tokenWithExpiry(email: email, password: password)
+    let access = minted.token
     await syncPassword(token: access, password: password)
     let user = try await subsonicUser(token: access)
+
+    // The request and manage tabs call Alcove's own API with this identity.
+    // Seeding it here means they work immediately after signing in, without
+    // a second round trip to the identity provider.
+    await AlcoveSession.shared.configure(email: email, password: password)
 
     var creds = LoginCredentials()
     creds.serverUrl = host
