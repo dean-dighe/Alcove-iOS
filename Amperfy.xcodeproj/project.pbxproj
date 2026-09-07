@@ -314,6 +314,7 @@
 		50C9D644284FA9C7007F18D0 /* BackendProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 500B2B302249607B00D14EF4 /* BackendProxy.swift */; };
 		50C9D645284FA9C7007F18D0 /* BackendApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5086F87A22397B8400546F5A /* BackendApi.swift */; };
 		50C9D646284FA9C7007F18D0 /* LoginCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */; };
+		803773C8797140EBAA9F3890 /* AlcoveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */; };
 		50C9D647284FAA02007F18D0 /* SsMusicFolderParserDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50DEEDFF265D46CB0073FF20 /* SsMusicFolderParserDelegate.swift */; };
 		50C9D648284FAA02007F18D0 /* SsPingParserDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5086F884223A1E4600546F5A /* SsPingParserDelegate.swift */; };
 		50C9D649284FAA02007F18D0 /* SubsonicVersion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E964A925E8E20E00E3210F /* SubsonicVersion.swift */; };
@@ -960,6 +961,7 @@
 		50BA92EC21CBF45D00E5901D /* AlbumParserDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlbumParserDelegate.swift; sourceTree = "<group>"; };
 		50BA92ED21CBF45D00E5901D /* ArtistParserDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ArtistParserDelegate.swift; sourceTree = "<group>"; };
 		50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginCredentials.swift; sourceTree = "<group>"; };
+		DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveAuth.swift; sourceTree = "<group>"; };
 		50BA92F721CC318D00E5901D /* PlayableTableCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayableTableCell.swift; sourceTree = "<group>"; };
 		50BA92F921CC37F800E5901D /* SongsVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongsVC.swift; sourceTree = "<group>"; };
 		50BA92FD21CED4AF00E5901D /* Utilities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Utilities.swift; sourceTree = "<group>"; };
@@ -1499,6 +1501,7 @@
 				50CDF201264BB1C000F83EF6 /* EventLogger.swift */,
 				5077F954222C58A10099CA91 /* GenericXmlParser.swift */,
 				50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */,
+				DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */,
 				509A7D8128059A0D009791D1 /* BackgroundLibrarySyncer.swift */,
 				5040B2C5269D947F00911451 /* BackgroundFetchTriggeredSyncer.swift */,
 				5086F87422384B5500546F5A /* Subsonic */,
@@ -2790,6 +2793,7 @@
 				50C9D65B284FAA0B007F18D0 /* PodcastParserDelegate.swift in Sources */,
 				50C9D67F284FAA6C007F18D0 /* LogEntryMO+CoreDataProperties.swift in Sources */,
 				50C9D646284FA9C7007F18D0 /* LoginCredentials.swift in Sources */,
+				803773C8797140EBAA9F3890 /* AlcoveAuth.swift in Sources */,
 				50C9D6EB284FAD51007F18D0 /* PodcastsShowType.swift in Sources */,
 				50C9D71828508005007F18D0 /* CommonString.swift in Sources */,
 				50C9D63F284FA9C7007F18D0 /* ScrobbleSyncer.swift in Sources */,
@@ -2976,7 +2980,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = U3R6D65S8W;
+				DEVELOPMENT_TEAM = WCF4XQ2RNJ;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -3044,7 +3048,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = U3R6D65S8W;
+				DEVELOPMENT_TEAM = WCF4XQ2RNJ;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -3085,7 +3089,7 @@
 				);
 				MARKETING_VERSION = 2.1.1;
 				"MARKETING_VERSION[sdk=macosx*]" = 2.1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = "de.familie-zimba.amperfy-music";
+				PRODUCT_BUNDLE_IDENTIFIER = "tech.netsuite.alcove";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -3124,7 +3128,7 @@
 				);
 				MARKETING_VERSION = 2.1.1;
 				"MARKETING_VERSION[sdk=macosx*]" = 2.1.1;
-				PRODUCT_BUNDLE_IDENTIFIER = "de.familie-zimba.amperfy-music";
+				PRODUCT_BUNDLE_IDENTIFIER = "tech.netsuite.alcove";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -3172,7 +3176,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++17";
-				PRODUCT_BUNDLE_IDENTIFIER = "de.familie-zimba.amperfy-music.AmperfyKit";
+				PRODUCT_BUNDLE_IDENTIFIER = "tech.netsuite.alcove.AlcoveKit";
 				PRODUCT_NAME = AmperfyKit;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -3223,7 +3227,7 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu11 gnu++17";
-				PRODUCT_BUNDLE_IDENTIFIER = "de.familie-zimba.amperfy-music.AmperfyKit";
+				PRODUCT_BUNDLE_IDENTIFIER = "tech.netsuite.alcove.AlcoveKit";
 				PRODUCT_NAME = AmperfyKit;
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -3258,7 +3262,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "de.familie-zimba.AmpertyKitTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "tech.netsuite.alcove.AlcoveKitTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = YES;
@@ -3290,7 +3294,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "de.familie-zimba.AmpertyKitTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "tech.netsuite.alcove.AlcoveKitTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = YES;
