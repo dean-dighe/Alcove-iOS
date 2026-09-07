@@ -47,7 +47,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 
   /// Task IDs need to be added to the array in Info.list under: <key>BGTaskSchedulerPermittedIdentifiers</key>
-  static let refreshTaskId = "de.familie-zimba.Amperfy.RefreshTask"
+  static let refreshTaskId = "tech.netsuite.alcove.RefreshTask"
 
   static let maxPlayablesDownloadsToAddAtOnceWithoutWarning = 200
 

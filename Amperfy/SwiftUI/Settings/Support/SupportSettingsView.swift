@@ -79,7 +79,10 @@ struct SupportSettingsView: View {
           \n
           --- Please don't remove the attachment ---
           """,
-          recipients: ["amperfy@familie-zimba.de"],
+          // This attaches a diagnostic log with server and library details.
+            // Upstream sends it to the Amperfy author, which for a private
+            // fork means mailing a stranger someone else's server details.
+            recipients: ["dean@nsenterpriseapps.com"],
           attachments: [MailAttachment(
             data: LogData.collectInformation(amperfyData: AmperKit.shared).asJSONData(),
             mimeType: "application/json",
