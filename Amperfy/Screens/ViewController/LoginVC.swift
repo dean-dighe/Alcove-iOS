@@ -57,9 +57,6 @@ extension UITextField {
 // MARK: - LoginVC
 
 class LoginVC: UIViewController {
-  var selectedApiType: BackenApiType = .notDetected
-  var httpHeaders: [String: String] = [:]
-
   #if targetEnvironment(macCatalyst)
     static let fontSize: CGFloat = 14
   #else
@@ -84,36 +81,6 @@ class LoginVC: UIViewController {
       .asColor
     return label
   }()
-
-  fileprivate lazy var apiLabel: UILabel = {
-    let label = UILabel()
-    label.text = "API:"
-    label.font = .systemFont(ofSize: Self.fontSize)
-    label.textColor = .hardLabelColor
-    return label
-  }()
-
-  fileprivate lazy var serverUrlTF: UITextField = {
-    let textField = UITextField()
-    textField.configuteForLogin(image: .serverUrl)
-    textField.placeholder = "https://localhost/ampache"
-    textField.textContentType = .URL
-    textField.keyboardType = .URL
-    textField.autocorrectionType = .no
-    textField.autocapitalizationType = .none
-    textField.addTarget(
-      self,
-      action: #selector(Self.serverUrlActionPressed),
-      for: .primaryActionTriggered
-    )
-    return textField
-  }()
-
-  @IBAction
-  func serverUrlActionPressed() {
-    serverUrlTF.resignFirstResponder()
-    login()
-  }
 
   fileprivate lazy var emailTF: UITextField = {
     let textField = UITextField()
@@ -160,14 +127,6 @@ class LoginVC: UIViewController {
     login()
   }
 
-  fileprivate lazy var apiSelectorButton: UIButton = {
-    var config = UIButton.Configuration.glass()
-    let button = UIButton(configuration: config)
-    button.setTitle("API", for: .normal)
-    button.preferredBehavioralStyle = .pad
-    return button
-  }()
-
   fileprivate lazy var loginButton: UIButton = {
     var config = UIButton.Configuration.prominentGlass()
     config.image = .login
@@ -179,26 +138,6 @@ class LoginVC: UIViewController {
     button.preferredBehavioralStyle = .pad
     return button
   }()
-
-  fileprivate lazy var httpHeadersButton: UIButton = {
-    var config = UIButton.Configuration.glass()
-    let button = UIButton(configuration: config)
-    button.setTitle("Custom HTTP Headers", for: .normal)
-    button.accessibilityLabel = "Custom HTTP Headers"
-    button.addTarget(self, action: #selector(Self.httpHeadersPressed), for: .touchUpInside)
-    button.preferredBehavioralStyle = .pad
-    return button
-  }()
-
-  @IBAction
-  func httpHeadersPressed() {
-    let editor = CustomHTTPHeadersView(headers: httpHeaders) { [weak self] updated in
-      self?.httpHeaders = updated
-    }
-    let hostingController = UIHostingController(rootView: NavigationView { editor })
-    hostingController.modalPresentationStyle = .formSheet
-    present(hostingController, animated: true)
-  }
 
   // Close button shown when presented as a sheet/modal
   fileprivate lazy var closeButton: UIButton = {
@@ -223,7 +162,6 @@ class LoginVC: UIViewController {
 
   @IBAction
   func loginPressed() {
-    serverUrlTF.resignFirstResponder()
     emailTF.resignFirstResponder()
     passwordTF.resignFirstResponder()
     login()
@@ -234,8 +172,8 @@ class LoginVC: UIViewController {
   /// Upstream asks for a server URL, a username, a password, an API flavour
   /// and optional HTTP headers, because it talks to whatever server you point
   /// it at. This build talks to one server, over Subsonic, and identity comes
-  /// from Unimatrix, so all of that is derived rather than typed. The fields
-  /// for it still exist above but are no longer part of the form.
+  /// from Unimatrix, so all of that is derived rather than typed and none of
+  /// upstream's fields for it exist here any more.
   public lazy var formView: UIView = {
     self.emailTF.translatesAutoresizingMaskIntoConstraints = false
     self.passwordTF.translatesAutoresizingMaskIntoConstraints = false
@@ -408,6 +346,12 @@ class LoginVC: UIViewController {
         meta.backendApi.provideCredentials(credentials: credentials)
 
         UserDefaults.standard.set(email, forKey: Self.lastEmailKey)
+        // Keyed by this account specifically -- configureAlcoveSession() on a
+        // TabBarVC for a *different* account must never pick this email up.
+        UserDefaults.standard.set(
+          email,
+          forKey: AlcoveSessionStore.emailDefaultsKey(for: accountInfo.ident)
+        )
 
         self.appDelegate.notificationHandler.post(name: .accountAdded, object: nil, userInfo: nil)
         self.appDelegate.notificationHandler.post(
@@ -447,27 +391,6 @@ class LoginVC: UIViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    updateApiSelectorText()
-
-    apiSelectorButton.showsMenuAsPrimaryAction = true
-    apiSelectorButton.menu = UIMenu(title: "Select API", children: [
-      UIAction(title: BackenApiType.notDetected.selectorDescription, handler: { _ in
-        self.selectedApiType = .notDetected
-        self.updateApiSelectorText()
-      }),
-      UIAction(title: BackenApiType.ampache.selectorDescription, handler: { _ in
-        self.selectedApiType = .ampache
-        self.updateApiSelectorText()
-      }),
-      UIAction(title: BackenApiType.subsonic.selectorDescription, handler: { _ in
-        self.selectedApiType = .subsonic
-        self.updateApiSelectorText()
-      }),
-      UIAction(title: BackenApiType.subsonic_legacy.selectorDescription, handler: { _ in
-        self.selectedApiType = .subsonic_legacy
-        self.updateApiSelectorText()
-      }),
-    ])
 
     view.backgroundColor = .systemBackground
 
@@ -593,7 +516,4 @@ class LoginVC: UIViewController {
     closeButton.isHidden = !isModal
   }
 
-  func updateApiSelectorText() {
-    apiSelectorButton.setTitle("\(selectedApiType.selectorDescription)", for: .normal)
-  }
 }
