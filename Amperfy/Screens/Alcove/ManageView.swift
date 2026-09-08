@@ -26,12 +26,20 @@ final class ManageModel: ObservableObject {
 
   var selecting: Bool { !selected.isEmpty }
 
+  private let accountId: String
+
+  init(accountId: String) {
+    self.accountId = accountId
+  }
+
   func load() async {
     loading = true
     defer { loading = false }
     do {
-      let page = try await AlcoveAPI.library(matching: query.trimmingCharacters(
-        in: .whitespacesAndNewlines))
+      let page = try await AlcoveAPI.library(
+        matching: query.trimmingCharacters(in: .whitespacesAndNewlines),
+        accountId: accountId
+      )
       tracks = page.tracks
       playlists = page.playlists
       total = page.total
@@ -42,7 +50,13 @@ final class ManageModel: ObservableObject {
 
   func save(_ track: AlcoveTrack, title: String, artist: String, album: String) async {
     do {
-      try await AlcoveAPI.edit(id: track.id, title: title, artist: artist, album: album)
+      try await AlcoveAPI.edit(
+        id: track.id,
+        title: title,
+        artist: artist,
+        album: album,
+        accountId: accountId
+      )
       show("Saved. The Music tab catches up shortly.", good: true)
       editing = nil
       await load()
@@ -58,7 +72,8 @@ final class ManageModel: ObservableObject {
       try await AlcoveAPI.setMembership(
         rels: rels,
         addTo: add ? playlist : nil,
-        removeFrom: add ? nil : playlist
+        removeFrom: add ? nil : playlist,
+        accountId: accountId
       )
       show(
         "\(rels.count) track\(rels.count == 1 ? "" : "s") "
@@ -87,7 +102,11 @@ final class ManageModel: ObservableObject {
 }
 
 struct ManageView: View {
-  @StateObject private var model = ManageModel()
+  @StateObject private var model: ManageModel
+
+  init(accountId: String) {
+    _model = StateObject(wrappedValue: ManageModel(accountId: accountId))
+  }
 
   var body: some View {
     ZStack {

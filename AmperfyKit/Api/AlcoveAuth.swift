@@ -134,17 +134,25 @@ public enum AlcoveAuth {
     await syncPassword(token: access, password: password)
     let user = try await subsonicUser(token: access)
 
-    // The request and manage tabs call Alcove's own API with this identity.
-    // Seeding it here means they work immediately after signing in, without
-    // a second round trip to the identity provider.
-    await AlcoveSession.shared.configure(email: email, password: password)
-
     var creds = LoginCredentials()
     creds.serverUrl = host
     creds.activeBackendServerUrl = host
     creds.username = user
     creds.password = password
     creds.backendApi = .subsonic
+
+    // The request and manage tabs call Alcove's own API with this identity.
+    // Seeding it here means they work immediately after signing in, without
+    // a second round trip to the identity provider. Keyed by the account
+    // this sign-in produces (not a single shared session): a device signed
+    // into more than one Alcove account must not have one account's tabs
+    // silently answer for another's.
+    let accountId = Account.createInfo(credentials: creds).ident
+    await AlcoveSessionStore.shared.session(for: accountId).configure(
+      email: email,
+      password: password
+    )
+
     return creds
   }
 }

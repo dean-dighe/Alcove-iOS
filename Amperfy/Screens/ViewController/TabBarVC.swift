@@ -80,7 +80,7 @@ class TabBarVC: UITabBarController {
       image: UIImage(systemName: "plus.magnifyingglass"),
       identifier: "Tabs.Request"
     ) { _ in
-      let vc = UIHostingController(rootView: RequestView())
+      let vc = UIHostingController(rootView: RequestView(accountId: self.account.info.ident))
       vc.title = "Request"
       return UINavigationController(rootViewController: vc)
     }
@@ -92,7 +92,7 @@ class TabBarVC: UITabBarController {
       image: UIImage(systemName: "slider.horizontal.3"),
       identifier: "Tabs.Manage"
     ) { _ in
-      let vc = UIHostingController(rootView: ManageView())
+      let vc = UIHostingController(rootView: ManageView(accountId: self.account.info.ident))
       vc.title = "Manage"
       return UINavigationController(rootViewController: vc)
     }
@@ -276,18 +276,24 @@ class TabBarVC: UITabBarController {
 }
 
 extension TabBarVC {
-  /// Give the Alcove API the credentials it needs to mint its own tokens.
+  /// Give the Alcove API the credentials it needs to mint its own tokens, for
+  /// *this* account specifically.
   ///
   /// The email is not part of the stored credentials, which hold the Subsonic
-  /// username instead, so it is remembered separately at sign in. Without it
-  /// the two tabs cannot authenticate and say so rather than failing silently.
+  /// username instead, so it is remembered separately at sign in, keyed by
+  /// this account's id -- a single shared key here would mean whichever
+  /// account signed in last silently supplied its email to every other
+  /// account's Request/Manage tabs too. Without it the two tabs cannot
+  /// authenticate and say so rather than failing silently.
   fileprivate func configureAlcoveSession() {
-    guard let credentials = appDelegate.storage.settings.accounts.getSetting(nil).read
+    guard let credentials = appDelegate.storage.settings.accounts.getSetting(account.info).read
       .loginCredentials,
-      let email = UserDefaults.standard.string(forKey: LoginVC.lastEmailKey),
+      let email = UserDefaults.standard
+      .string(forKey: AlcoveSessionStore.emailDefaultsKey(for: account.info.ident)),
       !email.isEmpty, !credentials.password.isEmpty
     else { return }
-    AlcoveSession.shared.configure(email: email, password: credentials.password)
+    AlcoveSessionStore.shared.session(for: account.info.ident)
+      .configure(email: email, password: credentials.password)
   }
 }
 

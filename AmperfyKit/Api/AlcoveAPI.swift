@@ -73,17 +73,16 @@ public enum AlcoveAPIError: LocalizedError {
 
 // MARK: - Session
 
-/// Holds a Supabase access token and mints a new one when it goes stale.
+/// Holds a Supabase access token and mints a new one when it goes stale, for
+/// one Amperfy account.
 @MainActor
 public final class AlcoveSession {
-  public static let shared = AlcoveSession()
+  fileprivate init() {}
 
   private var token: String?
   private var expiry = Date.distantPast
   private var email = ""
   private var password = ""
-
-  private init() {}
 
   public var isConfigured: Bool { !email.isEmpty && !password.isEmpty }
 
@@ -122,6 +121,43 @@ public final class AlcoveSession {
   }
 }
 
+/// One AlcoveSession per Amperfy account, keyed by AccountInfo.ident.
+///
+/// A single shared session used to serve every account: on a device with two
+/// signed-in accounts, whichever account's credentials were configured last
+/// (via sign-in, or the app's own re-priming on launch) silently answered
+/// Alcove API calls for *both* accounts' Request/Manage tabs. Scoping by
+/// account keeps them from ever colliding.
+@MainActor
+public final class AlcoveSessionStore {
+  public static let shared = AlcoveSessionStore()
+  private init() {}
+
+  private var sessions: [String: AlcoveSession] = [:]
+
+  public func session(for accountId: String) -> AlcoveSession {
+    if let existing = sessions[accountId] { return existing }
+    let created = AlcoveSession()
+    sessions[accountId] = created
+    return created
+  }
+
+  /// Drop an account's session entirely, e.g. on logout, so a later account
+  /// reusing the same slot (unlikely, but AccountInfo.ident is only a hash)
+  /// never inherits stale state.
+  public func signOut(accountId: String) {
+    sessions[accountId]?.signOut()
+    sessions.removeValue(forKey: accountId)
+  }
+
+  /// UserDefaults key for the Unimatrix email behind one account's session.
+  /// Needed alongside the stored Subsonic credentials because the email is
+  /// not part of them -- Subsonic only has the derived username.
+  public static func emailDefaultsKey(for accountId: String) -> String {
+    "alcove.email.\(accountId)"
+  }
+}
+
 // MARK: - API
 
 public enum AlcoveAPI {
@@ -135,13 +171,15 @@ public enum AlcoveAPI {
   /// returns 401 both for an expired token and for a revoked licence, and the
   /// two are indistinguishable from here, so a single retry separates them.
   private static func send(
+    accountId: String,
     path: String,
     method: String = "GET",
     body: [String: Any]? = nil
   ) async throws -> [String: Any] {
+    let session = await AlcoveSessionStore.shared.session(for: accountId)
     var lastMessage = "Alcove is not reachable."
     for attempt in 0 ..< 2 {
-      let token = try await AlcoveSession.shared.validToken()
+      let token = try await session.validToken()
       guard let url = URL(string: host + path) else {
         throw AlcoveAPIError.unavailable("Bad request")
       }
@@ -171,7 +209,7 @@ public enum AlcoveAPI {
 
       lastMessage = (json["error"] as? String) ?? "Something went wrong."
       if http.statusCode == 401, attempt == 0 {
-        await AlcoveSession.shared.invalidate()
+        await session.invalidate()
         continue
       }
       if http.statusCode == 401 { throw AlcoveAPIError.notSignedIn }
@@ -182,9 +220,10 @@ public enum AlcoveAPI {
 
   // MARK: Request tab
 
-  public static func search(_ query: String) async throws -> [AlcoveSearchResult] {
+  public static func search(_ query: String, accountId: String) async throws
+    -> [AlcoveSearchResult] {
     let q = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-    let json = try await send(path: "/request/api/search?q=\(q)")
+    let json = try await send(accountId: accountId, path: "/request/api/search?q=\(q)")
     let rows = json["results"] as? [[String: Any]] ?? []
     return rows.compactMap { r in
       guard let id = r["id"] as? String, let title = r["title"] as? String else { return nil }
@@ -199,16 +238,17 @@ public enum AlcoveAPI {
     }
   }
 
-  public static func queue(query: String, videoId: String) async throws {
+  public static func queue(query: String, videoId: String, accountId: String) async throws {
     _ = try await send(
+      accountId: accountId,
       path: "/request/api/queue",
       method: "POST",
       body: ["query": query, "videoId": videoId]
     )
   }
 
-  public static func myRequests() async throws -> [AlcoveRequest] {
-    let json = try await send(path: "/request/api/queue")
+  public static func myRequests(accountId: String) async throws -> [AlcoveRequest] {
+    let json = try await send(accountId: accountId, path: "/request/api/queue")
     let rows = json["requests"] as? [[String: Any]] ?? []
     return rows.compactMap { r in
       guard let id = r["id"] as? String else { return nil }
@@ -224,9 +264,12 @@ public enum AlcoveAPI {
 
   // MARK: Manage tab
 
-  public static func library(matching query: String = "") async throws -> AlcoveLibraryPage {
+  public static func library(
+    matching query: String = "",
+    accountId: String
+  ) async throws -> AlcoveLibraryPage {
     let q = query.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
-    let json = try await send(path: "/manage/api/tracks?q=\(q)")
+    let json = try await send(accountId: accountId, path: "/manage/api/tracks?q=\(q)")
     let rows = json["tracks"] as? [[String: Any]] ?? []
     let tracks = rows.compactMap { r -> AlcoveTrack? in
       guard let id = r["id"] as? String else { return nil }
@@ -246,8 +289,15 @@ public enum AlcoveAPI {
     )
   }
 
-  public static func edit(id: String, title: String, artist: String, album: String) async throws {
+  public static func edit(
+    id: String,
+    title: String,
+    artist: String,
+    album: String,
+    accountId: String
+  ) async throws {
     _ = try await send(
+      accountId: accountId,
       path: "/manage/api/edit",
       method: "POST",
       body: ["id": id, "title": title, "artist": artist, "album": album]
@@ -257,9 +307,11 @@ public enum AlcoveAPI {
   public static func setMembership(
     rels: [String],
     addTo: String? = nil,
-    removeFrom: String? = nil
+    removeFrom: String? = nil,
+    accountId: String
   ) async throws {
     _ = try await send(
+      accountId: accountId,
       path: "/manage/api/membership",
       method: "POST",
       body: [
@@ -270,8 +322,14 @@ public enum AlcoveAPI {
     )
   }
 
-  public static func playlist(action: String, name: String, newName: String = "") async throws {
+  public static func playlist(
+    action: String,
+    name: String,
+    newName: String = "",
+    accountId: String
+  ) async throws {
     _ = try await send(
+      accountId: accountId,
       path: "/manage/api/playlist",
       method: "POST",
       body: ["action": action, "name": name, "newName": newName]

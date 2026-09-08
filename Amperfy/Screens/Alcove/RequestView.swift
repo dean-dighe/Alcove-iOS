@@ -24,6 +24,12 @@ final class RequestModel: ObservableObject {
   /// the whole list.
   @Published var queueing: Set<String> = []
 
+  private let accountId: String
+
+  init(accountId: String) {
+    self.accountId = accountId
+  }
+
   func search() async {
     let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
     guard q.count >= 2 else {
@@ -34,7 +40,7 @@ final class RequestModel: ObservableObject {
     notice = ""
     defer { searching = false }
     do {
-      results = try await AlcoveAPI.search(q)
+      results = try await AlcoveAPI.search(q, accountId: accountId)
       searched = true
       if results.isEmpty { show("Nothing found for that.", good: false) }
     } catch {
@@ -46,8 +52,13 @@ final class RequestModel: ObservableObject {
     queueing.insert(r.id)
     defer { queueing.remove(r.id) }
     do {
-      try await AlcoveAPI.queue(query: r.title, videoId: r.id)
-      show("Queued. It usually lands within a minute.", good: true)
+      try await AlcoveAPI.queue(query: r.title, videoId: r.id, accountId: accountId)
+      show(
+        r.owned
+          ? "Added to your library. Already had it -- no re-download needed."
+          : "Queued. It usually lands within a minute.",
+        good: true
+      )
       await loadMine()
     } catch {
       show(error.localizedDescription, good: false)
@@ -56,7 +67,7 @@ final class RequestModel: ObservableObject {
 
   func loadMine() async {
     do {
-      mine = try await AlcoveAPI.myRequests()
+      mine = try await AlcoveAPI.myRequests(accountId: accountId)
     } catch {
       // A failure here is not worth interrupting the search flow over.
     }
@@ -69,7 +80,11 @@ final class RequestModel: ObservableObject {
 }
 
 struct RequestView: View {
-  @StateObject private var model = RequestModel()
+  @StateObject private var model: RequestModel
+
+  init(accountId: String) {
+    _model = StateObject(wrappedValue: RequestModel(accountId: accountId))
+  }
 
   var body: some View {
     ZStack {

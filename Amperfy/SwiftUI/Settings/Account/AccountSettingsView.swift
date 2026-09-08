@@ -92,6 +92,14 @@ struct AccountSettingsView: View {
     meta.stopManager()
     appDelegate.resetMeta(accountInfo)
 
+    // Drop this account's Alcove session and remembered email too, so a
+    // later sign-in that happens to land on the same account slot never
+    // inherits a stale token or identity.
+    AlcoveSessionStore.shared.signOut(accountId: accountInfo.ident)
+    UserDefaults.standard.removeObject(
+      forKey: AlcoveSessionStore.emailDefaultsKey(for: accountInfo.ident)
+    )
+
     // delete cached files
     CacheFileManager.shared.deleteAccountCache(accountInfo: accountInfo)
     // reset login credentials -> at new start the login view is presented to auth and resync library
