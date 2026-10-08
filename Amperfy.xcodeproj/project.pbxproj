@@ -316,6 +316,7 @@
 		50C9D646284FA9C7007F18D0 /* LoginCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */; };
 		803773C8797140EBAA9F3890 /* AlcoveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */; };
 		BB6FAABC73775C57E5693B4A /* AlcoveAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40AE214A403F4E3902AD65B6 /* AlcoveAPI.swift */; };
+		000009B167069386B397CC79 /* AlcoveShares.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2927D2BAAE4BD44B871EB23E /* AlcoveShares.swift */; };
 		1D7504450267BEC6ABF411B4 /* AlcoveTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256C725063540FC29C66A304 /* AlcoveTheme.swift */; };
 		64E2AD3A577B10FE8DF2AE04 /* RequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB95529D3F52CD7B2FD37BF /* RequestView.swift */; };
 		C922C2CFDEF6AB79BF6F2FE4 /* ManageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747B26BE9A86A0EF2B92ABB4 /* ManageView.swift */; };
@@ -967,6 +968,7 @@
 		50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginCredentials.swift; sourceTree = "<group>"; };
 		DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveAuth.swift; sourceTree = "<group>"; };
 		40AE214A403F4E3902AD65B6 /* AlcoveAPI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveAPI.swift; sourceTree = "<group>"; };
+		2927D2BAAE4BD44B871EB23E /* AlcoveShares.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveShares.swift; sourceTree = "<group>"; };
 		256C725063540FC29C66A304 /* AlcoveTheme.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveTheme.swift; sourceTree = "<group>"; };
 		1AB95529D3F52CD7B2FD37BF /* RequestView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RequestView.swift; sourceTree = "<group>"; };
 		747B26BE9A86A0EF2B92ABB4 /* ManageView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ManageView.swift; sourceTree = "<group>"; };
@@ -1511,6 +1513,7 @@
 				50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */,
 				DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */,
 				40AE214A403F4E3902AD65B6 /* AlcoveAPI.swift */,
+				2927D2BAAE4BD44B871EB23E /* AlcoveShares.swift */,
 				509A7D8128059A0D009791D1 /* BackgroundLibrarySyncer.swift */,
 				5040B2C5269D947F00911451 /* BackgroundFetchTriggeredSyncer.swift */,
 				5086F87422384B5500546F5A /* Subsonic */,
@@ -2818,6 +2821,7 @@
 				50C9D646284FA9C7007F18D0 /* LoginCredentials.swift in Sources */,
 				803773C8797140EBAA9F3890 /* AlcoveAuth.swift in Sources */,
 				BB6FAABC73775C57E5693B4A /* AlcoveAPI.swift in Sources */,
+				000009B167069386B397CC79 /* AlcoveShares.swift in Sources */,
 				50C9D6EB284FAD51007F18D0 /* PodcastsShowType.swift in Sources */,
 				50C9D71828508005007F18D0 /* CommonString.swift in Sources */,
 				50C9D63F284FA9C7007F18D0 /* ScrobbleSyncer.swift in Sources */,

@@ -39,6 +39,17 @@ public struct AlcoveRequest: Identifiable, Sendable {
   public let status: String
   public let at: String
   public let detail: String
+  /// The playlist the song goes into once it is imported; empty means the
+  /// requests playlist.
+  public let playlist: String
+}
+
+/// What a delete did: the paths removed, those kept (with why: a song still
+/// in someone else's library stays on the server) and the playlists it left.
+public struct AlcoveDeleteResult: Sendable {
+  public let deleted: [String]
+  public let kept: [(rel: String, reason: String)]
+  public let playlists: [String]
 }
 
 public struct AlcoveTrack: Identifiable, Sendable {
@@ -59,12 +70,19 @@ public struct AlcoveLibraryPage: Sendable {
 
 public enum AlcoveAPIError: LocalizedError {
   case notSignedIn
+  /// The Unimatrix password changed somewhere else. The app stays signed in
+  /// (Dean, 2026-10-08: never sign anyone out but by their own hand); Settings
+  /// has Sign out for signing in with the new password.
+  case passwordChanged
   case unavailable(String)
   case server(String)
 
   public var errorDescription: String? {
     switch self {
-    case .notSignedIn: "Sign in again to continue."
+    case .notSignedIn:
+      "Alcove couldn't confirm your account just now. Your music keeps playing; try again in a moment."
+    case .passwordChanged:
+      "Your Unimatrix password changed. Music keeps playing; to request or manage, sign out in Settings and sign in with the new one."
     case let .unavailable(m): m
     case let .server(m): m
     }
@@ -113,7 +131,14 @@ public final class AlcoveSession {
   public func validToken() async throws -> String {
     if let token, Date() < expiry { return token }
     guard isConfigured else { throw AlcoveAPIError.notSignedIn }
-    let fresh = try await AlcoveAuth.accessToken(email: email, password: password)
+    let fresh: (token: String, expiresIn: TimeInterval)
+    do {
+      fresh = try await AlcoveAuth.accessToken(email: email, password: password)
+    } catch AlcoveAuthError.badCredentials {
+      // Never clears the session: the stored credentials stay, and playback
+      // (which uses the music server's own password) is untouched.
+      throw AlcoveAPIError.passwordChanged
+    }
     token = fresh.token
     // Renew a little early rather than discovering expiry mid-request.
     expiry = Date().addingTimeInterval(max(60, fresh.expiresIn - 120))
@@ -238,12 +263,22 @@ public enum AlcoveAPI {
     }
   }
 
-  public static func queue(query: String, videoId: String, accountId: String) async throws {
+  /// Queue a song for import. With a playlist it lands there when the import
+  /// runs (or at once, linked, when the library already has it); without one
+  /// it goes to the requests playlist, as before.
+  public static func queue(
+    query: String,
+    videoId: String,
+    playlist: String? = nil,
+    accountId: String
+  ) async throws {
+    var body: [String: Any] = ["query": query, "videoId": videoId]
+    if let playlist, !playlist.isEmpty { body["playlist"] = playlist }
     _ = try await send(
       accountId: accountId,
       path: "/request/api/queue",
       method: "POST",
-      body: ["query": query, "videoId": videoId]
+      body: body
     )
   }
 
@@ -257,7 +292,8 @@ public enum AlcoveAPI {
         query: r["query"] as? String ?? "",
         status: r["status"] as? String ?? "",
         at: r["at"] as? String ?? "",
-        detail: r["detail"] as? String ?? ""
+        detail: r["detail"] as? String ?? "",
+        playlist: r["playlist"] as? String ?? ""
       )
     }
   }
@@ -319,6 +355,26 @@ public enum AlcoveAPI {
         "add": addTo.map { [$0] } ?? [],
         "remove": removeFrom.map { [$0] } ?? [],
       ]
+    )
+  }
+
+  /// Delete songs from your library; the server removes them too (a song still
+  /// in someone else's library is kept there and reported).
+  public static func deleteTracks(rels: [String], accountId: String) async throws
+    -> AlcoveDeleteResult {
+    let json = try await send(
+      accountId: accountId,
+      path: "/manage/api/delete",
+      method: "POST",
+      body: ["rels": rels]
+    )
+    let kept = (json["kept"] as? [[String: Any]] ?? []).map {
+      (rel: $0["rel"] as? String ?? "", reason: $0["reason"] as? String ?? "")
+    }
+    return AlcoveDeleteResult(
+      deleted: json["deleted"] as? [String] ?? [],
+      kept: kept,
+      playlists: json["playlists"] as? [String] ?? []
     )
   }
 

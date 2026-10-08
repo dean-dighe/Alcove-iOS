@@ -202,7 +202,7 @@ class SubsonicLibrarySyncer: CommonLibrarySyncer, LibrarySyncer {
       )
       let parserDelegate = SsPlaylistParserDelegate(
         performanceMonitor: self.performanceMonitor, account: accountAsync,
-        library: asyncCompanion.library
+        library: asyncCompanion.library, owner: self.subsonicServerApi.username
       )
       try self.parse(
         response: playlistsResponse,
@@ -953,7 +953,7 @@ class SubsonicLibrarySyncer: CommonLibrarySyncer, LibrarySyncer {
       let accountAsync = asyncCompanion.library.getAccount(managedObjectId: self.accountObjectId)
       let parserDelegate = SsPlaylistParserDelegate(
         performanceMonitor: self.performanceMonitor, account: accountAsync,
-        library: asyncCompanion.library
+        library: asyncCompanion.library, owner: self.subsonicServerApi.username
       )
       try self.parse(response: response, delegate: parserDelegate)
     }

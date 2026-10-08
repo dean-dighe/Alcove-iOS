@@ -38,7 +38,12 @@ class PlaylistTableCell: BasicTableCell {
   func display(playlist: Playlist, rootView: UITableViewController?) {
     self.playlist = playlist
     self.rootView = rootView
-    nameLabel.text = playlist.name
+    if let share = AlcoveShares.sharedBy(playlist.name) {
+      nameLabel.attributedText = Self.sharedName(share.name, by: share.owner, font: nameLabel.font)
+    } else {
+      nameLabel.attributedText = nil
+      nameLabel.text = playlist.name
+    }
     entityImage.display(
       theme: appDelegate.storage.settings.accounts.getSetting(playlist.account?.info).read
         .themePreference,
@@ -51,5 +56,29 @@ class PlaylistTableCell: BasicTableCell {
     infoLabel.textAlignment = (traitCollection.horizontalSizeClass == .regular) ? .right : .left
     accessoryType = .disclosureIndicator
     backgroundColor = .systemBackground
+  }
+
+  /// The playlist's own name followed by a "Shared by <owner>" pill.
+  static func sharedName(_ name: String, by owner: String, font: UIFont) -> NSAttributedString {
+    let out = NSMutableAttributedString(string: name + "  ", attributes: [.font: font])
+    let pillFont = UIFont.systemFont(ofSize: max(10, font.pointSize - 5), weight: .semibold)
+    let text = "Shared by \(owner)" as NSString
+    let textSize = text.size(withAttributes: [.font: pillFont])
+    let size = CGSize(width: ceil(textSize.width) + 14, height: ceil(textSize.height) + 6)
+    let accent = UIColor(red: 0x3E / 255, green: 0xA6 / 255, blue: 0xFF / 255, alpha: 1)
+    let image = UIGraphicsImageRenderer(size: size).image { _ in
+      let path = UIBezierPath(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: size.height / 2)
+      accent.withAlphaComponent(0.18).setFill()
+      path.fill()
+      text.draw(
+        at: CGPoint(x: 7, y: 3),
+        withAttributes: [.font: pillFont, .foregroundColor: accent]
+      )
+    }
+    let attachment = NSTextAttachment()
+    attachment.image = image
+    attachment.bounds = CGRect(x: 0, y: (font.capHeight - size.height) / 2, width: size.width, height: size.height)
+    out.append(NSAttributedString(attachment: attachment))
+    return out
   }
 }

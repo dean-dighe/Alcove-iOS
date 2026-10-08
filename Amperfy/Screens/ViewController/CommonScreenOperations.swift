@@ -82,20 +82,7 @@ extension UIViewController {
       accountActions.append(action)
     }
 
-    #if targetEnvironment(macCatalyst)
-      let addAccountImage = UIImage.plus
-    #else
-      let addAccountImage = UIImage.userCirclePlus
-    #endif
-    let openAddAccount = UIAction(
-      title: "Add Account",
-      image: addAccountImage,
-      handler: { _ in
-        let loginVC = AppStoryboard.Main.segueToLogin()
-        loginVC.modalPresentationStyle = .formSheet
-        self.present(loginVC, animated: true)
-      }
-    )
+    // Alcove has one sign-in (Dean, 2026-10-08): no Add Account. Sign out lives in Settings.
     let openSettings = UIAction(
       title: "Settings",
       image: .settings,
@@ -109,7 +96,7 @@ extension UIViewController {
         #endif
       }
     )
-    let settingsMenu = UIMenu(options: [.displayInline], children: [openAddAccount, openSettings])
+    let settingsMenu = UIMenu(options: [.displayInline], children: [openSettings])
     accountActions.append(settingsMenu)
 
     return UIMenu(

@@ -4,6 +4,8 @@
 //
 //  Ask for music the library does not have yet. Mirrors the /request page:
 //  search, see what is already owned, queue the rest, and watch it arrive.
+//  Every result goes straight into a playlist in one step (Dean, 2026-10-08):
+//  pick it from the result's Add to menu and the import puts it there.
 //
 //  Licensed under GPL-3.0, as the rest of this project is.
 //
@@ -23,6 +25,8 @@ final class RequestModel: ObservableObject {
   /// Ids currently being queued, so a row can show progress without freezing
   /// the whole list.
   @Published var queueing: Set<String> = []
+  /// Your own playlists, for the Add to menu.
+  @Published var playlists: [String] = []
 
   private let accountId: String
 
@@ -48,20 +52,35 @@ final class RequestModel: ObservableObject {
     }
   }
 
-  func queue(_ r: AlcoveSearchResult) async {
+  /// Queue one result into `playlist` (nil: the requests playlist).
+  func queue(_ r: AlcoveSearchResult, into playlist: String? = nil) async {
     queueing.insert(r.id)
     defer { queueing.remove(r.id) }
     do {
-      try await AlcoveAPI.queue(query: r.title, videoId: r.id, accountId: accountId)
+      let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+      try await AlcoveAPI.queue(
+        query: q.isEmpty ? r.title : q,
+        videoId: r.id,
+        playlist: playlist,
+        accountId: accountId
+      )
+      let destination = playlist ?? "Requests"
       show(
         r.owned
-          ? "Added to your library. Already had it -- no re-download needed."
-          : "Queued. It usually lands within a minute.",
+          ? "Added to \(destination). Already in the library, so no download needed."
+          : "Queued into \(destination). It usually lands within a minute.",
         good: true
       )
       await loadMine()
     } catch {
       show(error.localizedDescription, good: false)
+    }
+  }
+
+  func loadPlaylists() async {
+    // A query no track matches returns the playlist names alone, keeping it small.
+    if let page = try? await AlcoveAPI.library(matching: "\u{0}", accountId: accountId) {
+      playlists = page.playlists
     }
   }
 
@@ -111,9 +130,10 @@ struct RequestView: View {
             ForEach(model.results) { r in
               ResultRow(
                 result: r,
-                busy: model.queueing.contains(r.id)
-              ) {
-                Task { await model.queue(r) }
+                busy: model.queueing.contains(r.id),
+                playlists: model.playlists
+              ) { playlist in
+                Task { await model.queue(r, into: playlist) }
               }
             }
           } else if model.searched {
@@ -138,14 +158,18 @@ struct RequestView: View {
       }
       .scrollDismissesKeyboard(.interactively)
     }
-    .task { await model.loadMine() }
+    .task {
+      await model.loadMine()
+      await model.loadPlaylists()
+    }
   }
 }
 
 private struct ResultRow: View {
   let result: AlcoveSearchResult
   let busy: Bool
-  let onQueue: () -> ()
+  let playlists: [String]
+  let onQueue: (String?) -> ()
 
   var body: some View {
     AlcoveCard {
@@ -179,18 +203,25 @@ private struct ResultRow: View {
 
         Spacer(minLength: 0)
 
-        Button(action: onQueue) {
+        Menu {
+          Section("Add to") {
+            Button { onQueue(nil) } label: { Label("Requests", systemImage: "tray.and.arrow.down") }
+            ForEach(playlists, id: \.self) { name in
+              Button { onQueue(name) } label: { Label(name, systemImage: "music.note.list") }
+            }
+          }
+        } label: {
           if busy {
             ProgressView().controlSize(.small)
           } else {
-            Image(systemName: result.owned ? "arrow.down.circle" : "plus.circle.fill")
+            Image(systemName: "plus.circle.fill")
               .font(.system(size: 22))
           }
         }
         .buttonStyle(.plain)
-        .foregroundStyle(result.owned ? Alcove.dim : Alcove.accent)
+        .foregroundStyle(Alcove.accent)
         .disabled(busy)
-        .accessibilityLabel(result.owned ? "Request anyway" : "Request this song")
+        .accessibilityLabel("Add to a playlist")
       }
     }
   }
@@ -224,6 +255,12 @@ private struct RequestRow: View {
             .font(Alcove.label)
             .foregroundStyle(Alcove.fg)
             .lineLimit(1)
+          if !request.playlist.isEmpty {
+            Text("into \(request.playlist)")
+              .font(Alcove.caption)
+              .foregroundStyle(Alcove.accent)
+              .lineLimit(1)
+          }
           if !request.detail.isEmpty {
             Text(request.detail)
               .font(Alcove.caption)

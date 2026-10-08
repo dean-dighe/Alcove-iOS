@@ -31,10 +31,21 @@ class SsPlaylistParserDelegate: SsXmlParser {
   private var parsedPlaylists: Set<Playlist>
   private let account: Account
   private let library: LibraryStorage
+  /// Alcove (Dean, 2026-10-08): only the signed-in user's own playlists. A
+  /// playlist shared to them is a copy they own, named "<owner>'s <name>", so it
+  /// stays; anyone else's (an admin sees every public one) is left out.
+  private let owner: String?
+  private var skipping = false
 
-  init(performanceMonitor: ThreadPerformanceMonitor, account: Account, library: LibraryStorage) {
+  init(
+    performanceMonitor: ThreadPerformanceMonitor,
+    account: Account,
+    library: LibraryStorage,
+    owner: String? = nil
+  ) {
     self.account = account
     self.library = library
+    self.owner = owner
     self.allOldPlaylists = Set(library.getPlaylists(for: account))
     self.playlistsDict = [String: Playlist]()
     for pl in allOldPlaylists {
@@ -60,6 +71,10 @@ class SsPlaylistParserDelegate: SsXmlParser {
     )
 
     if elementName == "playlist" {
+      if let owner, !owner.isEmpty, let by = attributeDict["owner"], !by.isEmpty, by != owner {
+        skipping = true
+        return
+      }
       guard let playlistId = attributeDict["id"],
             let attributePlaylistName = attributeDict["name"] else {
         return
@@ -99,6 +114,8 @@ class SsPlaylistParserDelegate: SsXmlParser {
     qualifiedName qName: String?
   ) {
     switch elementName {
+    case "playlist" where skipping:
+      skipping = false
     case "playlist":
       parsedCount += 1
       if let parsedPlaylist = playlist {

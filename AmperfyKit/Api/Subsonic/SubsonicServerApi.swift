@@ -106,6 +106,8 @@ final class SubsonicServerApi: URLCleanser, Sendable {
   internal let serverApiVersion = Atomic<SubsonicVersion?>(wrappedValue: nil)
   internal let clientApiVersion = Atomic<SubsonicVersion?>(wrappedValue: nil)
   internal let authType = Atomic<SubsonicApiAuthType>(wrappedValue: .autoDetect)
+  /// The signed-in Subsonic username (Alcove: only this user's playlists are shown).
+  internal var username: String? { credentials.wrappedValue?.username }
   internal var account: AccountInfo? {
     guard let credentials = credentials.wrappedValue else { return nil }
     return Account.createInfo(credentials: credentials)
