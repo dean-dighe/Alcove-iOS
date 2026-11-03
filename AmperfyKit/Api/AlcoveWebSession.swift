@@ -15,6 +15,7 @@
 
 import CryptoKit
 import Foundation
+import WebKit
 
 // MARK: - AlcovePlayerInterface
 
@@ -117,6 +118,12 @@ public enum AlcoveWebSession {
       .expires: now.addingTimeInterval(sessionLifetime),
       .sameSitePolicy: HTTPCookieStringPolicy.sameSiteLax,
     ])
+  }
+
+  /// Forget the web player's session (an app sign-out): the page asks to sign in again next time.
+  @MainActor
+  public static func clearCookies(in store: WKHTTPCookieStore) async {
+    for c in await store.allCookies() where c.name == cookieName { await store.deleteCookie(c) }
   }
 
   /// POST /auth/exchange {code, verifier} -> the Alcove session.

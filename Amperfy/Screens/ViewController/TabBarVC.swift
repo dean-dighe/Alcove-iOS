@@ -253,7 +253,8 @@ class TabBarVC: UITabBarController {
   override func viewIsAppearing(_ animated: Bool) {
     super.viewIsAppearing(animated)
     refresh()
-    selectedTab = homeTab
+    // Alcove: the web player, when chosen, is where the app opens
+    selectedTab = webPlayerTab ?? homeTab
     welcomePopupPresenter.displayInfoPopupsIfNeeded()
   }
 
@@ -285,15 +286,6 @@ class TabBarVC: UITabBarController {
 }
 
 extension TabBarVC {
-  /// Give the Alcove API the credentials it needs to mint its own tokens, for
-  /// *this* account specifically.
-  ///
-  /// The email is not part of the stored credentials, which hold the Subsonic
-  /// username instead, so it is remembered separately at sign in, keyed by
-  /// this account's id -- a single shared key here would mean whichever
-  /// account signed in last silently supplied its email to every other
-  /// account's Request/Manage tabs too. Without it the two tabs cannot
-  /// authenticate and say so rather than failing silently.
   // Alcove: add or remove the web player tab to match the setting, and open it when it is chosen.
   private func applyPlayerInterface() {
     let wanted = AlcovePlayerInterface.read() == .web
@@ -321,6 +313,15 @@ extension TabBarVC {
     applyPlayerInterface()
   }
 
+  /// Give the Alcove API the credentials it needs to mint its own tokens, for
+  /// *this* account specifically.
+  ///
+  /// The email is not part of the stored credentials, which hold the Subsonic
+  /// username instead, so it is remembered separately at sign in, keyed by
+  /// this account's id -- a single shared key here would mean whichever
+  /// account signed in last silently supplied its email to every other
+  /// account's Request/Manage tabs too. Without it the two tabs cannot
+  /// authenticate and say so rather than failing silently.
   fileprivate func configureAlcoveSession() {
     guard let credentials = appDelegate.storage.settings.accounts.getSetting(account.info).read
       .loginCredentials,

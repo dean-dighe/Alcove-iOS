@@ -21,6 +21,7 @@
 
 import AmperfyKit
 import SwiftUI
+import WebKit
 
 // MARK: - AccountSettingsView
 
@@ -96,6 +97,8 @@ struct AccountSettingsView: View {
     // later sign-in that happens to land on the same account slot never
     // inherits a stale token or identity.
     AlcoveSessionStore.shared.signOut(accountId: accountInfo.ident)
+    // and the web player's session, so the next person to sign in does not get this one's library there
+    Task { await AlcoveWebSession.clearCookies(in: WKWebsiteDataStore.default().httpCookieStore) }
     UserDefaults.standard.removeObject(
       forKey: AlcoveSessionStore.emailDefaultsKey(for: accountInfo.ident)
     )
