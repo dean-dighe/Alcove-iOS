@@ -31,6 +31,8 @@ class TabBarVC: UITabBarController {
   private var homeTab: UITab?
   private var requestTab: UITab?
   private var manageTab: UITab?
+  // Alcove: the web player (Settings > Player Interface > Web), first in the bar while it is chosen
+  private var webPlayerTab: UITab?
   private let account: Account
 
   init(account: Account) {
@@ -147,6 +149,13 @@ class TabBarVC: UITabBarController {
 
     delegate = self
     tabs = fixTabs
+    applyPlayerInterface()
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(playerInterfaceChanged),
+      name: AlcovePlayerInterface.changed,
+      object: nil
+    )
 
     NotificationCenter.default.addObserver(
       self,
@@ -285,6 +294,33 @@ extension TabBarVC {
   /// account signed in last silently supplied its email to every other
   /// account's Request/Manage tabs too. Without it the two tabs cannot
   /// authenticate and say so rather than failing silently.
+  // Alcove: add or remove the web player tab to match the setting, and open it when it is chosen.
+  private func applyPlayerInterface() {
+    let wanted = AlcovePlayerInterface.read() == .web
+    if wanted, webPlayerTab == nil {
+      let tab = UITab(
+        title: "Player",
+        image: UIImage(systemName: "globe"),
+        identifier: "Tabs.WebPlayer"
+      ) { _ in
+        let vc = WebPlayerVC()
+        vc.title = "Player"
+        return vc
+      }
+      webPlayerTab = tab
+      tabs = [tab] + tabs
+      selectedTab = tab
+    } else if !wanted, let tab = webPlayerTab {
+      tabs = tabs.filter { $0 !== tab }
+      webPlayerTab = nil
+    }
+  }
+
+  @objc
+  private func playerInterfaceChanged() {
+    applyPlayerInterface()
+  }
+
   fileprivate func configureAlcoveSession() {
     guard let credentials = appDelegate.storage.settings.accounts.getSetting(account.info).read
       .loginCredentials,

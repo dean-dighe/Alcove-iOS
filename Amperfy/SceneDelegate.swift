@@ -119,6 +119,13 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     } else {
       initialViewController = AppStoryboard.Main.segueToLogin()
     }
+    #if DEBUG
+      // Alcove: `-AlcoveWebPlayerURL <url>` opens only the web player, on that URL (Alcove's fixture server), to look at
+      // it without signing in.
+      if UserDefaults.standard.string(forKey: "AlcoveWebPlayerURL") != nil {
+        initialViewController = WebPlayerVC()
+      }
+    #endif
     replaceMainRootViewController(vc: initialViewController!)
 
     window?.makeKeyAndVisible()

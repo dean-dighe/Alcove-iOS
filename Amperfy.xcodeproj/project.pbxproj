@@ -206,6 +206,7 @@
 		50BE5D522850F4D700156FC6 /* HelperTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50B798B323B8664700551E62 /* HelperTest.swift */; };
 		50BE5D532850F4E700156FC6 /* MusicPlayerTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5095F98B23C8389E008B0805 /* MusicPlayerTest.swift */; };
 		50BE5D542850F4E700156FC6 /* SubsonicVersionTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E964AE25E8E25E00E3210F /* SubsonicVersionTest.swift */; };
+		1216065A8037C4F0CBBF981C /* AlcoveWebSessionTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F14C7D1027B68B7B663F36F /* AlcoveWebSessionTest.swift */; };
 		50BE5D552850F4E700156FC6 /* UtilitiesTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5090963726496A9500DD9826 /* UtilitiesTest.swift */; };
 		B5A5CE010000000000000001 /* ShareSongActionTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A5CE010000000000000002 /* ShareSongActionTest.swift */; };
 		50BE5D562850F4E700156FC6 /* PlayQueueHandlerTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5011712D27453D1300B7C08D /* PlayQueueHandlerTest.swift */; };
@@ -315,10 +316,12 @@
 		50C9D645284FA9C7007F18D0 /* BackendApi.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5086F87A22397B8400546F5A /* BackendApi.swift */; };
 		50C9D646284FA9C7007F18D0 /* LoginCredentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */; };
 		803773C8797140EBAA9F3890 /* AlcoveAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */; };
+		5E0744AA79D3084B2AB5E43F /* AlcoveWebSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C3DC77F5603EE01DD371F99 /* AlcoveWebSession.swift */; };
 		BB6FAABC73775C57E5693B4A /* AlcoveAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40AE214A403F4E3902AD65B6 /* AlcoveAPI.swift */; };
 		000009B167069386B397CC79 /* AlcoveShares.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2927D2BAAE4BD44B871EB23E /* AlcoveShares.swift */; };
 		1D7504450267BEC6ABF411B4 /* AlcoveTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256C725063540FC29C66A304 /* AlcoveTheme.swift */; };
 		64E2AD3A577B10FE8DF2AE04 /* RequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB95529D3F52CD7B2FD37BF /* RequestView.swift */; };
+		390D8F04BE04C04F7EAC1FC4 /* WebPlayerVC.swift in Sources */ = {isa = PBXBuildFile; fileRef = 956D9C8B1D08EEF31EA12B18 /* WebPlayerVC.swift */; };
 		C922C2CFDEF6AB79BF6F2FE4 /* ManageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 747B26BE9A86A0EF2B92ABB4 /* ManageView.swift */; };
 		50C9D647284FAA02007F18D0 /* SsMusicFolderParserDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50DEEDFF265D46CB0073FF20 /* SsMusicFolderParserDelegate.swift */; };
 		50C9D648284FAA02007F18D0 /* SsPingParserDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5086F884223A1E4600546F5A /* SsPingParserDelegate.swift */; };
@@ -967,10 +970,12 @@
 		50BA92ED21CBF45D00E5901D /* ArtistParserDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ArtistParserDelegate.swift; sourceTree = "<group>"; };
 		50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoginCredentials.swift; sourceTree = "<group>"; };
 		DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveAuth.swift; sourceTree = "<group>"; };
+		6C3DC77F5603EE01DD371F99 /* AlcoveWebSession.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveWebSession.swift; sourceTree = "<group>"; };
 		40AE214A403F4E3902AD65B6 /* AlcoveAPI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveAPI.swift; sourceTree = "<group>"; };
 		2927D2BAAE4BD44B871EB23E /* AlcoveShares.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveShares.swift; sourceTree = "<group>"; };
 		256C725063540FC29C66A304 /* AlcoveTheme.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AlcoveTheme.swift; sourceTree = "<group>"; };
 		1AB95529D3F52CD7B2FD37BF /* RequestView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RequestView.swift; sourceTree = "<group>"; };
+		956D9C8B1D08EEF31EA12B18 /* WebPlayerVC.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WebPlayerVC.swift; sourceTree = "<group>"; };
 		747B26BE9A86A0EF2B92ABB4 /* ManageView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ManageView.swift; sourceTree = "<group>"; };
 		50BA92F721CC318D00E5901D /* PlayableTableCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayableTableCell.swift; sourceTree = "<group>"; };
 		50BA92F921CC37F800E5901D /* SongsVC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongsVC.swift; sourceTree = "<group>"; };
@@ -1119,6 +1124,7 @@
 		50E936DA2F100C7800C1C504 /* RatingAppEnum.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingAppEnum.swift; sourceTree = "<group>"; };
 		50E964A925E8E20E00E3210F /* SubsonicVersion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubsonicVersion.swift; sourceTree = "<group>"; };
 		50E964AE25E8E25E00E3210F /* SubsonicVersionTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubsonicVersionTest.swift; sourceTree = "<group>"; };
+		4F14C7D1027B68B7B663F36F /* AlcoveWebSessionTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlcoveWebSessionTest.swift; sourceTree = "<group>"; };
 		50ED030C2E2788200092E6DC /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.0.sdk/System/Library/Frameworks/CoreAudio.framework; sourceTree = DEVELOPER_DIR; };
 		50ED2B9027B7AE8500331BF7 /* EventNotificationHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventNotificationHandler.swift; sourceTree = "<group>"; };
 		50ED2B9227BB932700331BF7 /* album_missing_artistId.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = album_missing_artistId.xml; sourceTree = "<group>"; };
@@ -1512,6 +1518,7 @@
 				5077F954222C58A10099CA91 /* GenericXmlParser.swift */,
 				50BA92EE21CBF45D00E5901D /* LoginCredentials.swift */,
 				DC022FAE9C5243E484D1AEA2 /* AlcoveAuth.swift */,
+				6C3DC77F5603EE01DD371F99 /* AlcoveWebSession.swift */,
 				40AE214A403F4E3902AD65B6 /* AlcoveAPI.swift */,
 				2927D2BAAE4BD44B871EB23E /* AlcoveShares.swift */,
 				509A7D8128059A0D009791D1 /* BackgroundLibrarySyncer.swift */,
@@ -1789,6 +1796,7 @@
 			children = (
 				256C725063540FC29C66A304 /* AlcoveTheme.swift */,
 				1AB95529D3F52CD7B2FD37BF /* RequestView.swift */,
+				956D9C8B1D08EEF31EA12B18 /* WebPlayerVC.swift */,
 				747B26BE9A86A0EF2B92ABB4 /* ManageView.swift */,
 			);
 			path = Alcove;
@@ -2174,6 +2182,7 @@
 				50DB11A8266536190033BFFA /* Subsonic */,
 				50DB1180266501EC0033BFFA /* Ampache */,
 				50E964AE25E8E25E00E3210F /* SubsonicVersionTest.swift */,
+				4F14C7D1027B68B7B663F36F /* AlcoveWebSessionTest.swift */,
 			);
 			path = API;
 			sourceTree = "<group>";
@@ -2586,6 +2595,7 @@
 				508385EA21C5965B00C4BB32 /* LoginVC.swift in Sources */,
 				1D7504450267BEC6ABF411B4 /* AlcoveTheme.swift in Sources */,
 				64E2AD3A577B10FE8DF2AE04 /* RequestView.swift in Sources */,
+				390D8F04BE04C04F7EAC1FC4 /* WebPlayerVC.swift in Sources */,
 				C922C2CFDEF6AB79BF6F2FE4 /* ManageView.swift in Sources */,
 				507BA5CB2F01CFA800B4EA8B /* OnlineOfflineModeAppEnum.swift in Sources */,
 				50B137022EFC85D700738475 /* AccountAppEntity.swift in Sources */,
@@ -2820,6 +2830,7 @@
 				50C9D67F284FAA6C007F18D0 /* LogEntryMO+CoreDataProperties.swift in Sources */,
 				50C9D646284FA9C7007F18D0 /* LoginCredentials.swift in Sources */,
 				803773C8797140EBAA9F3890 /* AlcoveAuth.swift in Sources */,
+				5E0744AA79D3084B2AB5E43F /* AlcoveWebSession.swift in Sources */,
 				BB6FAABC73775C57E5693B4A /* AlcoveAPI.swift in Sources */,
 				000009B167069386B397CC79 /* AlcoveShares.swift in Sources */,
 				50C9D6EB284FAD51007F18D0 /* PodcastsShowType.swift in Sources */,
@@ -2890,6 +2901,7 @@
 				50BE5D522850F4D700156FC6 /* HelperTest.swift in Sources */,
 				50BE5D6B2850F4FB00156FC6 /* SsGenreParserTest.swift in Sources */,
 				50BE5D542850F4E700156FC6 /* SubsonicVersionTest.swift in Sources */,
+				1216065A8037C4F0CBBF981C /* AlcoveWebSessionTest.swift in Sources */,
 				50BE5D742850F4FB00156FC6 /* SsAlbumMultidiscExample1ParserTest.swift in Sources */,
 				50BE5D872850F50F00156FC6 /* AbstractAmpacheTest.swift in Sources */,
 				50BE5D4F2850F4C900156FC6 /* AlbumTest.swift in Sources */,
