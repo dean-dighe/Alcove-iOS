@@ -300,8 +300,7 @@ extension TabBarVC {
         return vc
       }
       webPlayerTab = tab
-      tabs = [tab] + tabs
-      selectedTab = tab
+      tabs = [tab] + tabs // selected at launch (viewIsAppearing), not behind the Settings sheet
     } else if !wanted, let tab = webPlayerTab {
       tabs = tabs.filter { $0 !== tab }
       webPlayerTab = nil

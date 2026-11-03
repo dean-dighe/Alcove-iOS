@@ -4,7 +4,7 @@
 //
 //  Alcove: the web player tab (Settings > Player Interface > Web), Dean 2026-11-03. Shows alcove.netsuite.tech/listen,
 //  the iPod or the standard player as the person chose on the server; each page has its own switch to the other.
-//  Playback is the page's own audio element. A native bridge like the Android app's window.AlcovePlayer (load,
+//  Playback is the page's own audio element, one player at a time (page or native). A native bridge like the Android app's window.AlcovePlayer (load,
 //  enqueue, toggle, next, previous, seek, state, reauth) would hand playback to AmperfyKit's player for the lock
 //  screen and CarPlay; see ALCOVE.md.
 //
@@ -19,8 +19,11 @@ import AuthenticationServices
 import UIKit
 import WebKit
 
+// MARK: - WebPlayerVC
+
 final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
-  ASWebAuthenticationPresentationContextProviding {
+  WKScriptMessageHandler,
+  ASWebAuthenticationPresentationContextProviding, MusicPlayable {
   private var web: WKWebView!
   private var signIn: ASWebAuthenticationSession?
   private let message = UILabel()
@@ -41,6 +44,14 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     config.allowsInlineMediaPlayback = true
     config.mediaTypesRequiringUserActionForPlayback = []
     config.allowsAirPlayForMediaPlayback = true
+    // One player at a time: the page says when its audio starts, and the native player pauses then (and the page's
+    // audio pauses when the native player starts, didStartPlaying below).
+    config.userContentController.addUserScript(WKUserScript(
+      source: "document.addEventListener('play', function () { window.webkit.messageHandlers.alcovePlay.postMessage('play'); }, true);",
+      injectionTime: .atDocumentStart,
+      forMainFrameOnly: true
+    ))
+    config.userContentController.add(WeakScriptHandler(self), name: "alcovePlay")
     web = WKWebView(frame: view.bounds, configuration: config)
     web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     web.navigationDelegate = self
@@ -64,14 +75,40 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
       message.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
     ])
     web.load(URLRequest(url: startURL))
+    appDelegate.player.addNotifier(notifier: self)
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    // One player at a time: the page plays its own audio, so the native player stops when this tab shows.
-    appDelegate.player.pause()
     if !message.isHidden { retry() }
   }
+
+  func userContentController(
+    _ controller: WKUserContentController,
+    didReceive message: WKScriptMessage
+  ) {
+    if message.name == "alcovePlay", appDelegate.player.isPlaying { appDelegate.player.pause() }
+  }
+
+  // MARK: MusicPlayable: the native player started, so the page's audio stops
+
+  func didStartPlaying() {
+    web?
+      .evaluateJavaScript(
+        "document.querySelectorAll('audio, video').forEach(function (m) { m.pause(); });"
+      )
+  }
+
+  func didStartPlayingFromBeginning() { didStartPlaying() }
+  func didPause() {}
+  func didStopPlaying() {}
+  func didElapsedTimeChange() {}
+  func didPlaylistChange() {}
+  func didArtworkChange() {}
+  func didNowPlayingInfoChange() {}
+  func didShuffleChange() {}
+  func didRepeatChange() {}
+  func didPlaybackRateChange() {}
 
   /// After a failure (shown as a message, which a tap also retries): load the player again.
   @objc
@@ -106,7 +143,9 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     }
     if AlcoveWebSession.isSignIn(url) {
       decisionHandler(.cancel)
-      startSignIn()
+      // The sign-in sheet needs this tab on screen to attach to
+      if view.window == nil { show("Not signed in. Tap to sign in with Google.") }
+      else { startSignIn() }
       return
     }
     #if DEBUG
@@ -117,7 +156,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     UIApplication.shared.open(url)
   }
 
-  /// A link meant for a new window (target=_blank): Alcove's opens in this one, anything else in the browser.
+  /// A link meant for a new window (target=_blank) opens in the browser, so the player keeps playing.
   func webView(
     _ webView: WKWebView,
     createWebViewWith configuration: WKWebViewConfiguration,
@@ -125,10 +164,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     windowFeatures: WKWindowFeatures
   )
     -> WKWebView? {
-    if let url = action.request.url {
-      if AlcoveWebSession.isAlcove(url) { webView.load(URLRequest(url: url)) }
-      else { UIApplication.shared.open(url) }
-    }
+    if let url = action.request.url { UIApplication.shared.open(url) }
     return nil
   }
 
@@ -176,7 +212,9 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
         }
         do {
           let sid = try await AlcoveWebSession.exchange(code: code, verifier: verifier)
-          guard let cookie = AlcoveWebSession.cookie(session: sid) else { return }
+          guard let cookie = AlcoveWebSession.cookie(session: sid) else {
+            return self.show("Sign-in did not finish. Tap to try again.")
+          }
           await self.web.configuration.websiteDataStore.httpCookieStore.setCookie(cookie)
           self.message.isHidden = true
           self.web.load(URLRequest(url: self.startURL))
@@ -201,5 +239,16 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
   private func show(_ text: String) {
     message.text = text
     message.isHidden = false
+  }
+}
+
+// MARK: - WeakScriptHandler
+
+/// WKUserContentController keeps its handlers strongly; this keeps the player controller from being held by its own page.
+private final class WeakScriptHandler: NSObject, WKScriptMessageHandler {
+  weak var target: WKScriptMessageHandler?
+  init(_ target: WKScriptMessageHandler) { self.target = target }
+  func userContentController(_ c: WKUserContentController, didReceive message: WKScriptMessage) {
+    target?.userContentController(c, didReceive: message)
   }
 }
