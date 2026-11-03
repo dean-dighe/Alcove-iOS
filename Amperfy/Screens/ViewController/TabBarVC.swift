@@ -295,7 +295,7 @@ extension TabBarVC {
         image: UIImage(systemName: "globe"),
         identifier: "Tabs.WebPlayer"
       ) { _ in
-        let vc = WebPlayerVC()
+        let vc = WebPlayerVC(account: self.account)
         vc.title = "Player"
         return vc
       }

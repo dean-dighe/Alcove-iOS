@@ -4,9 +4,10 @@
 //
 //  Alcove: the web player tab (Settings > Player Interface > Web), Dean 2026-11-03. Shows alcove.netsuite.tech/listen,
 //  the iPod or the standard player as the person chose on the server; each page has its own switch to the other.
-//  Playback is the page's own audio element, one player at a time (page or native). A native bridge like the Android app's window.AlcovePlayer (load,
-//  enqueue, toggle, next, previous, seek, state, reauth) would hand playback to AmperfyKit's player for the lock
-//  screen and CarPlay; see ALCOVE.md.
+//  - Signed in as the app account: the app's own token becomes the page's session (AlcoveWebSession.appSession), minted
+//    each time the tab loads and again when the page asks to sign in.
+//  - Played by the app's player: the page finds window.AlcovePlayer (AlcovePlayerBridge, the Android app's contract)
+//    and drives AmperfyKit's player through it, so the lock screen, background play and CarPlay work.
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -15,45 +16,57 @@
 //
 
 import AmperfyKit
-import AuthenticationServices
 import UIKit
 import WebKit
 
 // MARK: - WebPlayerVC
 
 final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
-  WKScriptMessageHandler,
-  ASWebAuthenticationPresentationContextProviding, MusicPlayable {
+  WKScriptMessageHandler {
+  /// nil only for the DEBUG preview (no account signed in)
+  private let account: Account?
   private var web: WKWebView!
-  private var signIn: ASWebAuthenticationSession?
   private let message = UILabel()
+  private var signingIn = false
+  private var stateTimer: Timer?
+  private var lastState = ""
+  /// Art ids the page sent with its songs, for the snapshot it reads back (the page builds the art URL from them).
+  private var arts: [String: String] = [:]
+
   /// DEBUG builds can point the player at the Alcove fixture server: `-AlcoveWebPlayerURL http://127.0.0.1:8792/listen`.
-  private var startURL: URL {
+  private var previewURL: URL? {
     #if DEBUG
-      if let s = UserDefaults.standard.string(forKey: "AlcoveWebPlayerURL"),
-         let u = URL(string: s) { return u }
+      if let s = UserDefaults.standard
+        .string(forKey: "AlcoveWebPlayerURL") { return URL(string: s) }
     #endif
-    return AlcoveWebSession.playerURL
+    return nil
+  }
+
+  private var startURL: URL { previewURL ?? AlcoveWebSession.playerURL }
+
+  init(account: Account?) {
+    self.account = account
+    super.init(nibName: nil, bundle: nil)
+  }
+
+  required init?(coder: NSCoder) {
+    fatalError("init(coder:) has not been implemented")
   }
 
   override func viewDidLoad() {
     super.viewDidLoad()
     view.backgroundColor = .black
     let config = WKWebViewConfiguration()
-    config.websiteDataStore = .default() // the session cookie persists with the page's own storage
+    config.websiteDataStore = .default()
     config.allowsInlineMediaPlayback = true
-    config.mediaTypesRequiringUserActionForPlayback = []
     config.allowsAirPlayForMediaPlayback = true
-    // One player at a time: the page says when its audio starts, and the native player pauses then (and the page's
-    // audio pauses when the native player starts, didStartPlaying below).
     config.userContentController.addUserScript(WKUserScript(
-      source: "document.addEventListener('play', function () { window.webkit.messageHandlers.alcovePlay.postMessage('play'); }, true);",
+      source: AlcovePlayerBridge.shimSource,
       injectionTime: .atDocumentStart,
       forMainFrameOnly: true
     ))
-    config.userContentController.add(WeakScriptHandler(self), name: "alcovePlay")
+    config.userContentController.add(WeakScriptHandler(self), name: AlcovePlayerBridge.handlerName)
     web = WKWebView(frame: view.bounds, configuration: config)
-    web.autoresizingMask = [.flexibleWidth, .flexibleHeight]
     web.navigationDelegate = self
     web.uiDelegate = self
     web.isOpaque = false
@@ -74,8 +87,14 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
       message.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
       message.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
     ])
-    web.load(URLRequest(url: startURL))
-    appDelegate.player.addNotifier(notifier: self)
+
+    // The page reads the player's state from the last snapshot pushed here, twice a second, as on Android.
+    stateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+      // Stops itself once this controller is gone
+      guard let self else { return timer.invalidate() }
+      MainActor.assumeIsolated { self.pushState() }
+    }
+    signInAndLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
@@ -83,38 +102,11 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     if !message.isHidden { retry() }
   }
 
-  func userContentController(
-    _ controller: WKUserContentController,
-    didReceive message: WKScriptMessage
-  ) {
-    if message.name == "alcovePlay", appDelegate.player.isPlaying { appDelegate.player.pause() }
-  }
-
-  // MARK: MusicPlayable: the native player started, so the page's audio stops
-
-  func didStartPlaying() {
-    web?
-      .evaluateJavaScript(
-        "document.querySelectorAll('audio, video').forEach(function (m) { m.pause(); });"
-      )
-  }
-
-  func didStartPlayingFromBeginning() { didStartPlaying() }
-  func didPause() {}
-  func didStopPlaying() {}
-  func didElapsedTimeChange() {}
-  func didPlaylistChange() {}
-  func didArtworkChange() {}
-  func didNowPlayingInfoChange() {}
-  func didShuffleChange() {}
-  func didRepeatChange() {}
-  func didPlaybackRateChange() {}
-
-  /// After a failure (shown as a message, which a tap also retries): load the player again.
+  /// After a failure (shown as a message, which a tap also retries): sign in and load again.
   @objc
   private func retry() {
     message.isHidden = true
-    web.load(URLRequest(url: startURL))
+    signInAndLoad()
   }
 
   override func viewDidLayoutSubviews() {
@@ -128,7 +120,43 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     ))
   }
 
-  // MARK: Navigation: Alcove's pages only; its sign-in link becomes the system sign-in sheet
+  // MARK: Sign-in: the app account's session as the page's cookie
+
+  private func signInAndLoad() {
+    if previewURL != nil {
+      web.load(URLRequest(url: startURL))
+      return
+    }
+    guard !signingIn else { return }
+    signingIn = true
+    Task { @MainActor in
+      defer { self.signingIn = false }
+      do {
+        guard let account else { return show("Sign in to the app first.") }
+        let alcove = AlcoveSessionStore.shared.session(for: account.info.ident)
+        var sid: String
+        do {
+          sid = try await AlcoveWebSession.appSession(token: alcove.validToken())
+        } catch AlcoveAuthError.badCredentials {
+          // An expired app token: get a fresh one once
+          alcove.invalidate()
+          sid = try await AlcoveWebSession.appSession(token: alcove.validToken())
+        }
+        guard let cookie = AlcoveWebSession.cookie(session: sid) else {
+          return show("Could not sign the player in. Tap to try again.")
+        }
+        let store = web.configuration.websiteDataStore.httpCookieStore
+        await AlcoveWebSession.clearCookies(in: store)
+        await store.setCookie(cookie)
+        message.isHidden = true
+        web.load(URLRequest(url: startURL))
+      } catch {
+        show("\(error.localizedDescription) Tap to try again.")
+      }
+    }
+  }
+
+  // MARK: Navigation: Alcove's pages only; its sign-in link signs it in as the app account
 
   func webView(
     _ webView: WKWebView,
@@ -143,20 +171,16 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     }
     if AlcoveWebSession.isSignIn(url) {
       decisionHandler(.cancel)
-      // The sign-in sheet needs this tab on screen to attach to
-      if view.window == nil { show("Not signed in. Tap to sign in with Google.") }
-      else { startSignIn() }
+      signInAndLoad()
       return
     }
-    #if DEBUG
-      if url.host == startURL.host { return decisionHandler(.allow) }
-    #endif
+    if let preview = previewURL, url.host == preview.host { return decisionHandler(.allow) }
     if AlcoveWebSession.isAlcove(url) { return decisionHandler(.allow) }
     decisionHandler(.cancel)
     UIApplication.shared.open(url)
   }
 
-  /// A link meant for a new window (target=_blank) opens in the browser, so the player keeps playing.
+  /// A link meant for a new window (target=_blank) opens in the browser, so the player page stays.
   func webView(
     _ webView: WKWebView,
     createWebViewWith configuration: WKWebViewConfiguration,
@@ -182,6 +206,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
 
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
     message.isHidden = true
+    lastState = ""
   }
 
   /// iOS can end the page's process while the app is in the background: load it again.
@@ -189,51 +214,100 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     webView.load(URLRequest(url: startURL))
   }
 
-  // MARK: Sign-in
+  // MARK: window.AlcovePlayer: the page drives the app's player
 
-  private func startSignIn() {
-    guard signIn == nil else { return }
-    let verifier = AlcoveWebSession.newVerifier()
-    let url = AlcoveWebSession.signInURL(challenge: AlcoveWebSession.challenge(for: verifier))
-    let session = ASWebAuthenticationSession(
-      url: url,
-      callback: .customScheme(AlcoveWebSession.callbackScheme)
-    ) {
-      [weak self] callback, error in
+  func userContentController(
+    _ controller: WKUserContentController,
+    didReceive message: WKScriptMessage
+  ) {
+    guard message.name == AlcovePlayerBridge.handlerName, let body = message.body as? [String: Any],
+          let op = body["op"] as? String else { return }
+    let player = appDelegate.player
+    switch op {
+    case "enqueue", "load":
+      guard let json = body["json"] as? String,
+            let (items, index) = AlcovePlayerBridge.parseQueue(json) else { return }
+      for item in items where !item.art.isEmpty { arts[item.id] = item.art }
+      let next = body["next"] as? Bool ?? false
       Task { @MainActor in
-        guard let self else { return }
-        self.signIn = nil
-        if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
-          return self.show("Not signed in. Tap to sign in with Google.")
+        let songs = await self.songs(for: items)
+        guard !songs.isEmpty
+        else {
+          return self.show("These songs are not in the app's library yet. Tap to try again.")
         }
-        guard error == nil, let callback,
-              let code = AlcoveWebSession.code(fromCallback: callback) else {
-          return self.show("Sign-in did not finish. Tap to try again.")
+        if op == "load" {
+          // The index of the song asked for, among the ones found
+          let wanted = items[index].id
+          let start = songs.firstIndex(where: { $0.id == wanted }) ?? 0
+          player.play(context: PlayContext(name: "Alcove", index: start, playables: songs))
+        } else if next {
+          player.insertUserQueue(playables: songs)
+        } else {
+          player.appendUserQueue(playables: songs)
         }
-        do {
-          let sid = try await AlcoveWebSession.exchange(code: code, verifier: verifier)
-          guard let cookie = AlcoveWebSession.cookie(session: sid) else {
-            return self.show("Sign-in did not finish. Tap to try again.")
-          }
-          await self.web.configuration.websiteDataStore.httpCookieStore.setCookie(cookie)
-          self.message.isHidden = true
-          self.web.load(URLRequest(url: self.startURL))
-        } catch {
-          self.show(error.localizedDescription)
-        }
+        self.pushState()
       }
-    }
-    session.presentationContextProvider = self
-    session.prefersEphemeralWebBrowserSession = false
-    signIn = session
-    if !session.start() {
-      signIn = nil
-      show("Sign-in could not open. Tap to try again.")
+    case "toggle": player.togglePlayPause()
+    case "pause": player.pause()
+    case "next": player.playNext()
+    case "previous": player.playPreviousOrReplay()
+    case "seek": player.seek(toSecond: (body["value"] as? NSNumber)?.doubleValue ?? 0)
+    case "volume": appDelegate.player.volume = (body["value"] as? NSNumber)?.floatValue ?? player
+      .volume
+    case "repeat": player
+      .setRepeatMode(AlcovePlayerBridge.repeatMode(body["mode"] as? String ?? "off"))
+    case "shuffle":
+      if (body["on"] as? Bool ?? false) != player.isShuffle { player.toggleShuffle() }
+    case "stop": player.stop()
+    case "reauth": signInAndLoad()
+    default: break
     }
   }
 
-  func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-    view.window ?? ASPresentationAnchor()
+  /// The songs for the page's ids, from the app's library; the ones it lacks are looked up on the server by title
+  /// (a search syncs them in), then read again. Ids it cannot find are left out.
+  private func songs(for items: [AlcovePlayerBridge.Item]) async -> [Song] {
+    guard let account else { return [] }
+    let library = appDelegate.storage.main.library
+    let missing = items.filter { library.getSong(for: account, id: $0.id) == nil }
+    if !missing.isEmpty, !appDelegate.storage.settings.user.isOfflineMode {
+      let syncer = appDelegate.getMeta(account.info).librarySyncer
+      for title in Set(missing.prefix(20).map(\.title)) where !title.isEmpty {
+        try? await syncer.searchSongs(searchText: title)
+      }
+    }
+    return items.compactMap { library.getSong(for: account, id: $0.id) }
+  }
+
+  private func pushState() {
+    guard isViewLoaded, web != nil else { return }
+    let player = appDelegate.player
+    let prev = player.getAllPrevQueueItems()
+    let next = player.getAllNextQueueItems()
+    let current = player.currentlyPlaying
+    let ids = prev.map(\.id) + (current.map { [$0.id] } ?? []) + next.map(\.id)
+    let item = current.map { p in
+      let song = p as? Song
+      return AlcovePlayerBridge.Item(
+        id: p.id,
+        title: p.title,
+        artist: song?.artist?.name ?? p.creatorName,
+        album: song?.album?.name ?? "",
+        art: arts[p.id] ?? "",
+        seconds: p.duration
+      )
+    }
+    let state = AlcovePlayerBridge.stateJSON(
+      playing: player.isPlaying,
+      time: player.elapsedTime,
+      duration: player.duration,
+      ids: ids,
+      index: prev.count,
+      current: item
+    )
+    guard state != lastState else { return }
+    lastState = state
+    web.evaluateJavaScript(AlcovePlayerBridge.pushScript(state: state))
   }
 
   private func show(_ text: String) {

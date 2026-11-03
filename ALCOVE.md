@@ -30,27 +30,24 @@ Alcove's API is the web pages' (`worker/README.md` in Alcove), with the same bea
 
 ## Web player (Settings > Player Interface)
 
-Dean, 2026-11-03: the web player on every platform. *Native* (the default) is Amperfy's own screens. *Web* adds a
-Player tab, first in the bar, with `alcove.netsuite.tech/listen` in a `WKWebView` (`Amperfy/Screens/Alcove/WebPlayerVC.swift`):
-the iPod or the standard player, chosen inside the page and kept per person on the server (`/api/v1/prefs`), so the
-choice follows the person to the web and the Android app.
+Dean, 2026-11-03: the web player on every platform, signed in as the app account and played by the app's player.
+*Native* (the default) is Amperfy's own screens. *Web* adds a Player tab, first in the bar, with
+`alcove.netsuite.tech/listen` in a `WKWebView` (`Amperfy/Screens/Alcove/WebPlayerVC.swift`): the iPod or the standard
+player, chosen inside the page and kept per person on the server (`/api/v1/prefs`), so the choice follows the person
+to the web and the Android app.
 
-- **Sign-in** (`AmperfyKit/Api/AlcoveWebSession.swift`), the way the Android app's WebView gets its session: when the
-  page links to `/auth/login` (signed out, or the session expired), the app opens Alcove's app sign-in in the system
-  sheet (`ASWebAuthenticationSession`, `/auth/login?client=ios&challenge=<S256>`, Google), takes the one-time code from
-  `alcove://auth-callback`, exchanges it with its verifier at `POST /auth/exchange`, and sets the session as the page's
-  `__Host-alcove_sid` cookie (30 days, kept in the web view's own store). Needs the Worker to accept `client=ios`
-  (Alcove PR 1). Google refuses sign-in inside a web view, which is why it is the sheet.
-- **Playback** is the page's own audio element: it plays while the app is open. The lock screen, background play and
-  CarPlay stay with the native player.
-- **A native bridge** would close that gap. The page already speaks to one on Android: `window.AlcovePlayer` with
-  `load(json)` (`{index, queue: [{id, title, artist, album, art, seconds}]}`), `enqueue(json, next)`, `toggle()`,
-  `pause()`, `next()`, `previous()`, `seek(seconds)`, `setVolume(v)`, `setRepeat("off"|"one"|"all")`, `setShuffle(on)`,
-  `stop()`, `state()` (synchronous: `{playing, loading, time, duration, index, ids, current}` as JSON) and `reauth()`.
-  On iOS: a `WKUserScript` at document start defines `window.AlcovePlayer` over a `WKScriptMessageHandler` for the
-  calls, and the app pushes the player's snapshot into the page twice a second for `state()`; the ids are the Subsonic
-  ids AmperfyKit already plays.
-- DEBUG builds take `-AlcoveWebPlayerURL <url>` to show Alcove's fixture server (`worker/dev/fixture-server.mjs`).
+- **Sign-in is the app account's** (`AmperfyKit/Api/AlcoveWebSession.swift`): the app sends its own Supabase token,
+  the bearer the Request and Manage tabs already use, to `POST /auth/app-session` and sets the answer as the page's
+  `__Host-alcove_sid` cookie (7 days). It does that each time the tab loads and when the page links to `/auth/login`,
+  and signing out of the account clears it. Needs the Worker route (Alcove PR 1).
+- **Playback is the app's player** (`AlcovePlayerBridge`): a script at document start gives the page
+  `window.AlcovePlayer`, the contract the Android app provides, so both interfaces drive AmperfyKit's player and the
+  lock screen, background play and CarPlay work. Calls (`load`, `enqueue`, `toggle`, `pause`, `next`, `previous`,
+  `seek`, `setVolume`, `setRepeat`, `setShuffle`, `stop`, `reauth`) arrive as script messages; `state()` is answered
+  from the snapshot the app pushes into the page twice a second. The page's ids are the Subsonic ids the app plays; a
+  song the app's library does not have yet is synced in by a search for its title first.
+- DEBUG builds take `-AlcoveWebPlayerURL <url>` to show Alcove's fixture server (`worker/dev/fixture-server.mjs`)
+  without signing in.
 
 ## Build and install
 

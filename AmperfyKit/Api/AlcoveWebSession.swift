@@ -3,9 +3,9 @@
 //  AmperfyKit
 //
 //  Alcove: the web player (alcove.netsuite.tech/listen) inside the app, Dean 2026-11-03. The page is Alcove's own: the
-//  iPod or the standard player, chosen per person on the server. It signs in like the Android app's WebView: Google
-//  through Alcove's app sign-in (/auth/login?client=ios with a PKCE challenge, alcove://auth-callback?code=, then
-//  POST /auth/exchange), and the Alcove session it gets is the page's __Host-alcove_sid cookie.
+//  iPod or the standard player, chosen per person on the server. It is signed in as the app account (the app's own
+//  token becomes an Alcove session at POST /auth/app-session, set as the page's __Host-alcove_sid cookie), and it
+//  plays through the app's player (window.AlcovePlayer, AlcovePlayerBridge below).
 //
 //  This program is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -13,7 +13,6 @@
 //  (at your option) any later version.
 //
 
-import CryptoKit
 import Foundation
 import WebKit
 
@@ -49,9 +48,8 @@ public enum AlcovePlayerInterface: String, CaseIterable, Sendable {
 
 public enum AlcoveWebSession {
   public static let cookieName = "__Host-alcove_sid"
-  /// The Worker keeps a session 30 days (SESSION_TTL_S in worker/src/auth.js).
-  public static let sessionLifetime: TimeInterval = 30 * 86400
-  public static let callbackScheme = "alcove"
+  /// The Worker keeps an app session 7 days (APP_SESSION_TTL_S in worker/src/auth.js).
+  public static let sessionLifetime: TimeInterval = 7 * 86400
 
   public static var hostURL: URL { URL(string: AlcoveAuth.host)! }
   public static var playerURL: URL { hostURL.appendingPathComponent("listen") }
@@ -61,50 +59,10 @@ public enum AlcoveWebSession {
     url.scheme == "https" && url.host == hostURL.host
   }
 
-  /// The page's sign-in link (`/auth/login`, from either interface). Google refuses sign-in inside a web view, so the
-  /// app runs it in the system's sign-in sheet instead.
+  /// The page's sign-in link (`/auth/login`, from either interface): the app signs the page in as its own account
+  /// instead (Google refuses sign-in inside a web view, and the app account is the one to use).
   public static func isSignIn(_ url: URL) -> Bool {
     isAlcove(url) && url.path == "/auth/login"
-  }
-
-  static func base64url(_ data: Data) -> String {
-    data.base64EncodedString()
-      .replacingOccurrences(of: "+", with: "-")
-      .replacingOccurrences(of: "/", with: "_")
-      .replacingOccurrences(of: "=", with: "")
-  }
-
-  /// A PKCE verifier: 32 random bytes, 43 base64url characters (the Worker accepts 43 to 128).
-  public static func newVerifier() -> String {
-    var bytes = [UInt8](repeating: 0, count: 32)
-    for i in bytes.indices { bytes[i] = UInt8.random(in: 0 ... 255) }
-    return base64url(Data(bytes))
-  }
-
-  /// The S256 challenge for a verifier (RFC 7636), as the Worker's pkceChallenge computes it.
-  public static func challenge(for verifier: String) -> String {
-    base64url(Data(SHA256.hash(data: Data(verifier.utf8))))
-  }
-
-  public static func signInURL(challenge: String) -> URL {
-    var c = URLComponents(
-      url: hostURL.appendingPathComponent("auth/login"),
-      resolvingAgainstBaseURL: false
-    )!
-    c.queryItems = [
-      URLQueryItem(name: "client", value: "ios"),
-      URLQueryItem(name: "challenge", value: challenge),
-      URLQueryItem(name: "select", value: "1"),
-    ]
-    return c.url!
-  }
-
-  /// The one-time code from `alcove://auth-callback?code=...`, or nil for anything else.
-  public static func code(fromCallback url: URL) -> String? {
-    guard url.scheme == callbackScheme, url.host == "auth-callback" else { return nil }
-    let code = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-      .first(where: { $0.name == "code" })?.value ?? ""
-    return code.range(of: "^[A-Za-z0-9_-]{43}$", options: .regularExpression) != nil ? code : nil
   }
 
   /// The page's session cookie. `__Host-` needs Secure, Path=/ and no Domain attribute, so it is host-only.
@@ -125,19 +83,147 @@ public enum AlcoveWebSession {
   public static func clearCookies(in store: WKHTTPCookieStore) async {
     for c in await store.allCookies() where c.name == cookieName { await store.deleteCookie(c) }
   }
+}
 
-  /// POST /auth/exchange {code, verifier} -> the Alcove session.
-  public static func exchange(code: String, verifier: String) async throws -> String {
-    var req = URLRequest(url: hostURL.appendingPathComponent("auth/exchange"))
+// MARK: - App account session
+
+extension AlcoveWebSession {
+  /// POST /auth/app-session with the app account's own Supabase token (the bearer its Request and Manage tabs send):
+  /// the web player's session for that same account (Alcove `worker/src/auth.js`, 7 days).
+  public static func appSession(token: String) async throws -> String {
+    var req = URLRequest(url: hostURL.appendingPathComponent("auth/app-session"))
     req.httpMethod = "POST"
-    req.setValue("application/json", forHTTPHeaderField: "content-type")
-    req.httpBody = try JSONSerialization.data(withJSONObject: ["code": code, "verifier": verifier])
+    req.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
     let (data, resp) = try await URLSession.shared.data(for: req)
     let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
     guard let http = resp as? HTTPURLResponse else { throw AlcoveAuthError.unreachable }
     if http.statusCode == 200, let session = json["session"] as? String,
        !session.isEmpty { return session }
-    throw AlcoveAuthError
-      .badCredentials((json["error"] as? String) ?? "Sign-in did not finish. Try again.")
+    if http.statusCode == 403 { throw AlcoveAuthError.notLicensed }
+    throw AlcoveAuthError.badCredentials((json["error"] as? String) ?? "Sign in to the app again.")
+  }
+}
+
+// MARK: - AlcovePlayerBridge
+
+/// `window.AlcovePlayer` for the web player, the contract the Android app gives the same page
+/// (claude-imessage android/.../music/IpodBridge.kt): with it both interfaces drive the app's own player, so the lock
+/// screen, background play and CarPlay work. Calls come in as script messages; `state()` must answer at once, so the
+/// app pushes the player's snapshot into the page (`window.__alcoveState`) and the shim returns the last one.
+public enum AlcovePlayerBridge {
+  public static let handlerName = "alcovePlayer"
+  public static let emptyState =
+    #"{"playing":false,"loading":false,"time":0,"duration":0,"index":0,"ids":[]}"#
+
+  public static let shimSource = """
+  (function () {
+    var last = '\(emptyState)';
+    var post = function (m) { window.webkit.messageHandlers.\(handlerName).postMessage(m); };
+    window.__alcoveState = function (s) { last = s; };
+    window.AlcovePlayer = {
+      load: function (j) { post({ op: 'load', json: j }); },
+      enqueue: function (j, next) { post({ op: 'enqueue', json: j, next: !!next }); },
+      toggle: function () { post({ op: 'toggle' }); },
+      pause: function () { post({ op: 'pause' }); },
+      next: function () { post({ op: 'next' }); },
+      previous: function () { post({ op: 'previous' }); },
+      seek: function (s) { post({ op: 'seek', value: Number(s) || 0 }); },
+      setVolume: function (v) { post({ op: 'volume', value: Number(v) || 0 }); },
+      setRepeat: function (m) { post({ op: 'repeat', mode: String(m) }); },
+      setShuffle: function (on) { post({ op: 'shuffle', on: !!on }); },
+      stop: function () { post({ op: 'stop' }); },
+      reauth: function () { post({ op: 'reauth' }); },
+      state: function () { return last; }
+    };
+  })();
+  """
+
+  public struct Item: Equatable, Sendable {
+    public var id: String
+    public var title: String
+    public var artist: String
+    public var album: String
+    public var art: String
+    public var seconds: Int
+
+    public init(
+      id: String,
+      title: String = "",
+      artist: String = "",
+      album: String = "",
+      art: String = "",
+      seconds: Int = 0
+    ) {
+      self.id = id
+      self.title = title
+      self.artist = artist
+      self.album = album
+      self.art = art
+      self.seconds = seconds
+    }
+
+    var json: [String: Any] {
+      ["id": id, "title": title, "artist": artist, "album": album, "art": art, "seconds": seconds]
+    }
+  }
+
+  /// The page's `{index, queue: [{id, title, artist, album, art, seconds}]}`; nil when it is not that or is empty.
+  /// The index is kept inside the queue.
+  public static func parseQueue(_ json: String) -> (items: [Item], index: Int)? {
+    guard let o = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any],
+          let q = o["queue"] as? [[String: Any]] else { return nil }
+    let items = q.compactMap { s -> Item? in
+      guard let id = s["id"] as? String, !id.isEmpty else { return nil }
+      return Item(
+        id: id,
+        title: s["title"] as? String ?? "",
+        artist: s["artist"] as? String ?? "",
+        album: s["album"] as? String ?? "",
+        art: s["art"] as? String ?? "",
+        seconds: (s["seconds"] as? NSNumber)?.intValue ?? 0
+      )
+    }
+    guard !items.isEmpty else { return nil }
+    let index = (o["index"] as? NSNumber)?.intValue ?? 0
+    return (items, min(max(index, 0), items.count - 1))
+  }
+
+  /// The page's repeat word as the player's mode.
+  public static func repeatMode(_ word: String) -> RepeatMode {
+    switch word {
+    case "one": .single
+    case "all": .all
+    default: .off
+    }
+  }
+
+  /// The snapshot as the page reads it: seconds, the queue's ids and where the current song is in them.
+  public static func stateJSON(
+    playing: Bool,
+    time: Double,
+    duration: Double,
+    ids: [String],
+    index: Int,
+    current: Item?
+  )
+    -> String {
+    var o: [String: Any] = [
+      "playing": playing, "loading": false, "time": time.isFinite ? time : 0,
+      "duration": duration.isFinite ? duration : 0, "index": index, "ids": ids,
+    ]
+    if let current { o["current"] = current.json }
+    let data = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys])) ??
+      Data(emptyState.utf8)
+    return String(decoding: data, as: UTF8.self)
+  }
+
+  /// `window.__alcoveState(<the state as a JavaScript string>)`, safe for any text in it.
+  public static func pushScript(state: String) -> String {
+    let literal = (try? JSONSerialization.data(
+      withJSONObject: [state],
+      options: [.fragmentsAllowed]
+    ))
+    .map { String(decoding: $0, as: UTF8.self) } ?? "[\"\"]"
+    return "window.__alcoveState && window.__alcoveState(\(literal)[0]);"
   }
 }
