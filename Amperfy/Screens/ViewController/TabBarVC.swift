@@ -31,6 +31,8 @@ class TabBarVC: UITabBarController {
   private var homeTab: UITab?
   private var requestTab: UITab?
   private var manageTab: UITab?
+  // Alcove: the web player (Settings > Player Interface > Web), first in the bar while it is chosen
+  private var webPlayerTab: UITab?
   private let account: Account
 
   init(account: Account) {
@@ -147,6 +149,13 @@ class TabBarVC: UITabBarController {
 
     delegate = self
     tabs = fixTabs
+    applyPlayerInterface()
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(playerInterfaceChanged),
+      name: AlcovePlayerInterface.changed,
+      object: nil
+    )
 
     NotificationCenter.default.addObserver(
       self,
@@ -244,7 +253,8 @@ class TabBarVC: UITabBarController {
   override func viewIsAppearing(_ animated: Bool) {
     super.viewIsAppearing(animated)
     refresh()
-    selectedTab = homeTab
+    // Alcove: the web player, when chosen, is where the app opens
+    selectedTab = webPlayerTab ?? homeTab
     welcomePopupPresenter.displayInfoPopupsIfNeeded()
   }
 
@@ -276,6 +286,32 @@ class TabBarVC: UITabBarController {
 }
 
 extension TabBarVC {
+  // Alcove: add or remove the web player tab to match the setting, and open it when it is chosen.
+  private func applyPlayerInterface() {
+    let wanted = AlcovePlayerInterface.read() == .web
+    if wanted, webPlayerTab == nil {
+      let tab = UITab(
+        title: "Player",
+        image: UIImage(systemName: "globe"),
+        identifier: "Tabs.WebPlayer"
+      ) { _ in
+        let vc = WebPlayerVC(account: self.account)
+        vc.title = "Player"
+        return vc
+      }
+      webPlayerTab = tab
+      tabs = [tab] + tabs // selected at launch (viewIsAppearing), not behind the Settings sheet
+    } else if !wanted, let tab = webPlayerTab {
+      tabs = tabs.filter { $0 !== tab }
+      webPlayerTab = nil
+    }
+  }
+
+  @objc
+  private func playerInterfaceChanged() {
+    applyPlayerInterface()
+  }
+
   /// Give the Alcove API the credentials it needs to mint its own tokens, for
   /// *this* account specifically.
   ///

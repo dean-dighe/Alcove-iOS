@@ -27,6 +27,8 @@ import SwiftUI
 struct SettingsView: View {
   @EnvironmentObject
   private var settings: Settings
+  @State
+  private var playerInterface = AlcovePlayerInterface.read()
 
   func screenLockPreventionOffPressed() {
     settings.screenLockPreventionPreference = .never
@@ -71,6 +73,27 @@ struct SettingsView: View {
           footer:
           "Songs, podcasts, and artworks won’t download offline. Searches are limited to the device, and playlists won’t sync with the server."
         )
+
+        // Alcove: the web player (Dean, 2026-11-03). The iPod or the standard player is chosen inside it, per person.
+        // Not on the Mac: its window has no tab bar to add the Player tab to.
+        #if !targetEnvironment(macCatalyst)
+          SettingsSection(
+            content: {
+              SettingsRow(title: "Player Interface") {
+                Menu(playerInterface.title) {
+                  ForEach(AlcovePlayerInterface.allCases, id: \.self) { choice in
+                    Button(choice.title) {
+                      playerInterface = choice
+                      AlcovePlayerInterface.write(choice)
+                    }
+                  }
+                }
+              }
+            },
+            footer:
+            "Web adds a Player tab with Alcove's web player: the iPod or the standard player, switched inside it and kept for you on every device. It plays through the app's player, so the lock screen, background play and CarPlay work as usual."
+          )
+        #endif
 
         SettingsSection {
           SettingsRow(title: "Prevent Screen Lock") {
