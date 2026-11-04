@@ -64,6 +64,13 @@ class AlcovePlayerBridgeTest: XCTestCase {
       )
     )
     XCTAssertEqual(index, 1, "the index stays inside the queue")
+    let shifted = AlcovePlayerBridge
+      .parseQueue(#"{"index":1,"queue":[{"title":"no id"},{"id":"t1"},{"id":"t2"}]}"#)!
+    XCTAssertEqual(
+      shifted.items[shifted.index].id,
+      "t1",
+      "an item left out before does not move the asked-for song"
+    )
     XCTAssertNil(AlcovePlayerBridge.parseQueue(#"{"queue":[]}"#))
     XCTAssertNil(AlcovePlayerBridge.parseQueue("not json"))
   }
@@ -80,7 +87,11 @@ class AlcovePlayerBridgeTest: XCTestCase {
       1,
       "a missing asked-for song starts at the next found"
     )
-    XCTAssertEqual(AlcovePlayerBridge.startIndex(found: [true, true, false], asked: 2), 0)
+    XCTAssertEqual(
+      AlcovePlayerBridge.startIndex(found: [true, true, false], asked: 2),
+      1,
+      "nothing found after: the last one before"
+    )
     XCTAssertNil(AlcovePlayerBridge.startIndex(found: [false, false], asked: 0))
   }
 

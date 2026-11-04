@@ -28,6 +28,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
   private var web: WKWebView!
   private let message = UILabel()
   private var signingIn = false
+  private var retryOnShow = true
   /// When the page last asked to sign in: a second ask within a minute stops, so a session the server keeps refusing
   /// cannot loop reloads.
   private var lastSignInAsk: Date?
@@ -106,7 +107,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    if !message.isHidden { retry() }
+    if !message.isHidden, retryOnShow { retry() }
     // The page reads the player's state from the last snapshot pushed here, twice a second while it is on screen.
     stateTimer?.invalidate()
     stateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
@@ -126,6 +127,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
   @objc
   private func retry() {
     message.isHidden = true
+    guard retryOnShow else { return }
     lastSignInAsk = nil
     signInAndLoad()
   }
@@ -201,9 +203,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
       }
       return
     }
-    if ["blob", "data", "about"].contains(url.scheme ?? "") { return decisionHandler(.allow) }
-    if let preview = previewURL, url.host == preview.host { return decisionHandler(.allow) }
-    if AlcoveWebSession.isAlcove(url) { return decisionHandler(.allow) }
+    if ownURL { return decisionHandler(.allow) }
     decisionHandler(.cancel)
     UIApplication.shared.open(url)
   }
@@ -269,14 +269,18 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
       guard !songs.isEmpty,
             let start = AlcovePlayerBridge.startIndex(found: found.map { $0 != nil }, asked: index)
       else {
-        return show("These songs are not in the app's library yet. Tap to try again.")
+        return show(
+          "These songs are not in the app's library yet. Try again in a minute.",
+          retryOnTap: false
+        )
       }
       if op == "load" {
         player.play(context: PlayContext(name: "Alcove", index: start, playables: songs))
       } else if body["next"] as? Bool ?? false {
         player.insertUserQueue(playables: songs)
       } else {
-        player.appendUserQueue(playables: songs)
+        // Add to queue: at the end of the list, as on the web and Android
+        player.appendContextQueue(playables: songs)
       }
       pushState()
     case "toggle": player.togglePlayPause()
@@ -322,7 +326,9 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     let current = player.currentlyPlaying
     // The songs queued with Play next and Add to queue play before the rest of the list, so they come next here too
     let queued = player.getAllUserQueueItems()
-    let ids = prev.map(\.id) + (current.map { [$0.id] } ?? []) + queued.map(\.id) + next.map(\.id)
+    // Nothing playing: no queue for the page to show a current song from
+    let ids = current == nil ? [] : prev.map(\.id) + [current!.id] + queued.map(\.id) + next
+      .map(\.id)
     let item = current.map { p in
       let song = p as? Song
       return AlcovePlayerBridge.Item(
@@ -339,7 +345,7 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
       time: player.elapsedTime,
       duration: player.duration,
       ids: ids,
-      index: prev.count,
+      index: current == nil ? 0 : prev.count,
       current: item
     )
     guard state != lastState else { return }
@@ -347,7 +353,10 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     web.evaluateJavaScript(AlcovePlayerBridge.pushScript(state: state))
   }
 
-  private func show(_ text: String) {
+  /// A message over the page. One about the page loading retries on a tap or when the tab shows again; one about a
+  /// song (retryOnTap false) just goes away on a tap, leaving the page as it is.
+  private func show(_ text: String, retryOnTap: Bool = true) {
+    retryOnShow = retryOnTap
     message.text = text
     message.isHidden = false
   }

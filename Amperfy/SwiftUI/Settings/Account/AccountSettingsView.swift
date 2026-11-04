@@ -100,8 +100,11 @@ struct AccountSettingsView: View {
     // and the web player's session, so the next person to sign in does not get this one's library there
     // (each account has its own web store: AlcoveWebSession.storeIdentifier)
     Task {
-      try? await WKWebsiteDataStore
-        .remove(forIdentifier: AlcoveWebSession.storeIdentifier(accountId: accountInfo.ident))
+      let id = AlcoveWebSession.storeIdentifier(accountId: accountInfo.ident)
+      // Empty it first: removing the store fails while a web view still holds it, emptying it does not
+      await WKWebsiteDataStore(forIdentifier: id)
+        .removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast)
+      try? await WKWebsiteDataStore.remove(forIdentifier: id)
     }
     UserDefaults.standard.removeObject(
       forKey: AlcoveSessionStore.emailDefaultsKey(for: accountInfo.ident)

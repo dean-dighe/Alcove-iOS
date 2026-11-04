@@ -200,11 +200,11 @@ public enum AlcovePlayerBridge {
   }
 
   /// The page's `{index, queue: [{id, title, artist, album, art, seconds}]}`; nil when it is not that or is empty.
-  /// The index is kept inside the queue.
+  /// Items without an id are left out, and the index follows the asked-for item (or the next one kept).
   public static func parseQueue(_ json: String) -> (items: [Item], index: Int)? {
     guard let o = (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any],
           let q = o["queue"] as? [[String: Any]] else { return nil }
-    let items = q.compactMap { s -> Item? in
+    let parsed = q.map { s -> Item? in
       guard let id = s["id"] as? String, !id.isEmpty else { return nil }
       return Item(
         id: id,
@@ -215,9 +215,10 @@ public enum AlcovePlayerBridge {
         seconds: (s["seconds"] as? NSNumber)?.intValue ?? 0
       )
     }
+    let items = parsed.compactMap { $0 }
     guard !items.isEmpty else { return nil }
-    let index = (o["index"] as? NSNumber)?.intValue ?? 0
-    return (items, min(max(index, 0), items.count - 1))
+    let asked = min(max((o["index"] as? NSNumber)?.intValue ?? 0, 0), parsed.count - 1)
+    return (items, startIndex(found: parsed.map { $0 != nil }, asked: asked) ?? 0)
   }
 
   /// The page's repeat word as the player's mode.
@@ -230,12 +231,14 @@ public enum AlcovePlayerBridge {
   }
 
   /// Where playback starts among the songs found: the asked-for song, or the next one found after it when the app
-  /// could not find it (nil when none is). `found[i]` says whether the page's item i was found.
+  /// could not find it, or the last one before it (nil when none is found). `found[i]` says whether item i was found.
   public static func startIndex(found: [Bool], asked: Int) -> Int? {
-    guard asked >= 0, asked < found.count, let at = found[asked...].firstIndex(of: true) else {
-      return found.contains(true) ? 0 : nil
-    }
-    return found[..<at].filter { $0 }.count
+    let kept = found.filter { $0 }.count
+    guard kept > 0 else { return nil }
+    guard asked >= 0, asked < found.count else { return 0 }
+    // The asked-for song, or the next one found after it, or failing that the last one before it
+    if let at = found[asked...].firstIndex(of: true) { return found[..<at].filter { $0 }.count }
+    return kept - 1
   }
 
   /// The snapshot as the page reads it: seconds, the queue's ids and where the current song is in them.
