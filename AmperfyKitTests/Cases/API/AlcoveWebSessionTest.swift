@@ -19,7 +19,7 @@ class AlcoveWebSessionTest: XCTestCase {
     XCTAssertEqual(c.path, "/")
     XCTAssertTrue(c.isSecure)
     XCTAssertEqual(c.domain, "alcove.netsuite.tech")
-    XCTAssertEqual(c.expiresDate, now.addingTimeInterval(7 * 86400))
+    XCTAssertEqual(c.expiresDate, now.addingTimeInterval(86400))
   }
 
   func testOnlyAlcovePagesLoadAndItsSignInIsCaught() {
@@ -66,6 +66,28 @@ class AlcovePlayerBridgeTest: XCTestCase {
     XCTAssertEqual(index, 1, "the index stays inside the queue")
     XCTAssertNil(AlcovePlayerBridge.parseQueue(#"{"queue":[]}"#))
     XCTAssertNil(AlcovePlayerBridge.parseQueue("not json"))
+  }
+
+  func testStartIndexAmongTheSongsFound() {
+    XCTAssertEqual(AlcovePlayerBridge.startIndex(found: [true, true, true], asked: 2), 2)
+    XCTAssertEqual(
+      AlcovePlayerBridge.startIndex(found: [true, false, true], asked: 2),
+      1,
+      "a missing song before shifts it"
+    )
+    XCTAssertEqual(
+      AlcovePlayerBridge.startIndex(found: [true, false, true], asked: 1),
+      1,
+      "a missing asked-for song starts at the next found"
+    )
+    XCTAssertEqual(AlcovePlayerBridge.startIndex(found: [true, true, false], asked: 2), 0)
+    XCTAssertNil(AlcovePlayerBridge.startIndex(found: [false, false], asked: 0))
+  }
+
+  func testEachAccountHasItsOwnWebStore() {
+    let a = AlcoveWebSession.storeIdentifier(accountId: "a")
+    XCTAssertEqual(a, AlcoveWebSession.storeIdentifier(accountId: "a"))
+    XCTAssertNotEqual(a, AlcoveWebSession.storeIdentifier(accountId: "b"))
   }
 
   func testRepeatWords() {

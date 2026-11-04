@@ -28,6 +28,12 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
   private var web: WKWebView!
   private let message = UILabel()
   private var signingIn = false
+  /// When the page last asked to sign in: a second ask within a minute stops, so a session the server keeps refusing
+  /// cannot loop reloads.
+  private var lastSignInAsk: Date?
+  /// The page's player calls, one at a time in order (as the Android bridge runs them): a load lands before the calls
+  /// after it.
+  private var opChain: Task<(), Never>?
   private var stateTimer: Timer?
   private var lastState = ""
   /// Art ids the page sent with its songs, for the snapshot it reads back (the page builds the art URL from them).
@@ -57,7 +63,14 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     super.viewDidLoad()
     view.backgroundColor = .black
     let config = WKWebViewConfiguration()
-    config.websiteDataStore = .default()
+    // Each app account has its own store (cookie, page storage), dropped when the account signs out
+    config.websiteDataStore = account
+      .map {
+        WKWebsiteDataStore(
+          forIdentifier: AlcoveWebSession
+            .storeIdentifier(accountId: $0.info.ident)
+        )
+      } ?? .default()
     config.allowsInlineMediaPlayback = true
     config.allowsAirPlayForMediaPlayback = true
     config.userContentController.addUserScript(WKUserScript(
@@ -88,24 +101,32 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
       message.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
     ])
 
-    // The page reads the player's state from the last snapshot pushed here, twice a second, as on Android.
-    stateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
-      // Stops itself once this controller is gone
-      guard let self else { return timer.invalidate() }
-      MainActor.assumeIsolated { self.pushState() }
-    }
     signInAndLoad()
   }
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
     if !message.isHidden { retry() }
+    // The page reads the player's state from the last snapshot pushed here, twice a second while it is on screen.
+    stateTimer?.invalidate()
+    stateTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+      guard let self else { return timer.invalidate() }
+      MainActor.assumeIsolated { self.pushState() }
+    }
+    pushState()
+  }
+
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    stateTimer?.invalidate()
+    stateTimer = nil
   }
 
   /// After a failure (shown as a message, which a tap also retries): sign in and load again.
   @objc
   private func retry() {
     message.isHidden = true
+    lastSignInAsk = nil
     signInAndLoad()
   }
 
@@ -164,16 +185,23 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> ()
   ) {
     guard let url = action.request.url else { return decisionHandler(.cancel) }
-    // Frames inside the page, and its own blob:, data: and about: URLs, are the page's business
-    if action.targetFrame?.isMainFrame == false || ["blob", "data", "about"]
-      .contains(url.scheme ?? "") {
-      return decisionHandler(.allow)
-    }
+    let ownURL = AlcoveWebSession.isAlcove(url) || ["blob", "data", "about"]
+      .contains(url.scheme ?? "")
+      || (previewURL.map { url.host == $0.host } ?? false)
+    // A frame inside the page loads only what the page itself may; it never opens anything outside
+    if action.targetFrame?
+      .isMainFrame == false { return decisionHandler(ownURL ? .allow : .cancel) }
     if AlcoveWebSession.isSignIn(url) {
       decisionHandler(.cancel)
-      signInAndLoad()
+      if let last = lastSignInAsk, Date().timeIntervalSince(last) < 60 {
+        show("The player could not stay signed in. Tap to try again.")
+      } else {
+        lastSignInAsk = Date()
+        signInAndLoad()
+      }
       return
     }
+    if ["blob", "data", "about"].contains(url.scheme ?? "") { return decisionHandler(.allow) }
     if let preview = previewURL, url.host == preview.host { return decisionHandler(.allow) }
     if AlcoveWebSession.isAlcove(url) { return decisionHandler(.allow) }
     decisionHandler(.cancel)
@@ -222,31 +250,35 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
   ) {
     guard message.name == AlcovePlayerBridge.handlerName, let body = message.body as? [String: Any],
           let op = body["op"] as? String else { return }
+    let prior = opChain
+    opChain = Task { @MainActor in
+      await prior?.value
+      await self.perform(op, body)
+    }
+  }
+
+  private func perform(_ op: String, _ body: [String: Any]) async {
     let player = appDelegate.player
     switch op {
     case "enqueue", "load":
       guard let json = body["json"] as? String,
             let (items, index) = AlcovePlayerBridge.parseQueue(json) else { return }
       for item in items where !item.art.isEmpty { arts[item.id] = item.art }
-      let next = body["next"] as? Bool ?? false
-      Task { @MainActor in
-        let songs = await self.songs(for: items)
-        guard !songs.isEmpty
-        else {
-          return self.show("These songs are not in the app's library yet. Tap to try again.")
-        }
-        if op == "load" {
-          // The index of the song asked for, among the ones found
-          let wanted = items[index].id
-          let start = songs.firstIndex(where: { $0.id == wanted }) ?? 0
-          player.play(context: PlayContext(name: "Alcove", index: start, playables: songs))
-        } else if next {
-          player.insertUserQueue(playables: songs)
-        } else {
-          player.appendUserQueue(playables: songs)
-        }
-        self.pushState()
+      let found = await songs(for: items)
+      let songs = found.compactMap { $0 }
+      guard !songs.isEmpty,
+            let start = AlcovePlayerBridge.startIndex(found: found.map { $0 != nil }, asked: index)
+      else {
+        return show("These songs are not in the app's library yet. Tap to try again.")
       }
+      if op == "load" {
+        player.play(context: PlayContext(name: "Alcove", index: start, playables: songs))
+      } else if body["next"] as? Bool ?? false {
+        player.insertUserQueue(playables: songs)
+      } else {
+        player.appendUserQueue(playables: songs)
+      }
+      pushState()
     case "toggle": player.togglePlayPause()
     case "pause": player.pause()
     case "next": player.playNext()
@@ -264,19 +296,22 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     }
   }
 
-  /// The songs for the page's ids, from the app's library; the ones it lacks are looked up on the server by title
-  /// (a search syncs them in), then read again. Ids it cannot find are left out.
-  private func songs(for items: [AlcovePlayerBridge.Item]) async -> [Song] {
-    guard let account else { return [] }
+  /// The song for each of the page's items (nil where the app has none), from the app's library, read once per id;
+  /// the ones it lacks are looked up on the server by title (a search syncs them in, up to 20 titles), then read again.
+  private func songs(for items: [AlcovePlayerBridge.Item]) async -> [Song?] {
+    guard let account else { return items.map { _ in nil } }
     let library = appDelegate.storage.main.library
-    let missing = items.filter { library.getSong(for: account, id: $0.id) == nil }
+    var byId: [String: Song] = [:]
+    for id in Set(items.map(\.id)) { byId[id] = library.getSong(for: account, id: id) }
+    let missing = items.filter { byId[$0.id] == nil }
     if !missing.isEmpty, !appDelegate.storage.settings.user.isOfflineMode {
       let syncer = appDelegate.getMeta(account.info).librarySyncer
       for title in Set(missing.prefix(20).map(\.title)) where !title.isEmpty {
         try? await syncer.searchSongs(searchText: title)
       }
+      for id in Set(missing.map(\.id)) { byId[id] = library.getSong(for: account, id: id) }
     }
-    return items.compactMap { library.getSong(for: account, id: $0.id) }
+    return items.map { byId[$0.id] }
   }
 
   private func pushState() {
@@ -285,7 +320,9 @@ final class WebPlayerVC: UIViewController, WKNavigationDelegate, WKUIDelegate,
     let prev = player.getAllPrevQueueItems()
     let next = player.getAllNextQueueItems()
     let current = player.currentlyPlaying
-    let ids = prev.map(\.id) + (current.map { [$0.id] } ?? []) + next.map(\.id)
+    // The songs queued with Play next and Add to queue play before the rest of the list, so they come next here too
+    let queued = player.getAllUserQueueItems()
+    let ids = prev.map(\.id) + (current.map { [$0.id] } ?? []) + queued.map(\.id) + next.map(\.id)
     let item = current.map { p in
       let song = p as? Song
       return AlcovePlayerBridge.Item(

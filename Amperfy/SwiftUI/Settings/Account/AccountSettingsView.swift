@@ -98,7 +98,11 @@ struct AccountSettingsView: View {
     // inherits a stale token or identity.
     AlcoveSessionStore.shared.signOut(accountId: accountInfo.ident)
     // and the web player's session, so the next person to sign in does not get this one's library there
-    Task { await AlcoveWebSession.clearCookies(in: WKWebsiteDataStore.default().httpCookieStore) }
+    // (each account has its own web store: AlcoveWebSession.storeIdentifier)
+    Task {
+      try? await WKWebsiteDataStore
+        .remove(forIdentifier: AlcoveWebSession.storeIdentifier(accountId: accountInfo.ident))
+    }
     UserDefaults.standard.removeObject(
       forKey: AlcoveSessionStore.emailDefaultsKey(for: accountInfo.ident)
     )

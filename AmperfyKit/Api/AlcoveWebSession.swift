@@ -13,6 +13,7 @@
 //  (at your option) any later version.
 //
 
+import CryptoKit
 import Foundation
 import WebKit
 
@@ -48,8 +49,8 @@ public enum AlcovePlayerInterface: String, CaseIterable, Sendable {
 
 public enum AlcoveWebSession {
   public static let cookieName = "__Host-alcove_sid"
-  /// The Worker keeps an app session 7 days (APP_SESSION_TTL_S in worker/src/auth.js).
-  public static let sessionLifetime: TimeInterval = 7 * 86400
+  /// The Worker keeps an app session a day (APP_SESSION_TTL_S in worker/src/auth.js); the tab mints a new one each load.
+  public static let sessionLifetime: TimeInterval = 86400
 
   public static var hostURL: URL { URL(string: AlcoveAuth.host)! }
   public static var playerURL: URL { hostURL.appendingPathComponent("listen") }
@@ -78,6 +79,32 @@ public enum AlcoveWebSession {
     ])
   }
 
+  /// The web view store for one app account (its cookie, local storage and cache), so two accounts never share a
+  /// session or a page's saved state: a UUID taken from the account id, the same every time.
+  public static func storeIdentifier(accountId: String) -> UUID {
+    var b = Array(SHA256.hash(data: Data("alcove.web.\(accountId)".utf8)).prefix(16))
+    b[6] = (b[6] & 0x0F) | 0x50 // version 5 style, name based
+    b[8] = (b[8] & 0x3F) | 0x80
+    return UUID(uuid: (
+      b[0],
+      b[1],
+      b[2],
+      b[3],
+      b[4],
+      b[5],
+      b[6],
+      b[7],
+      b[8],
+      b[9],
+      b[10],
+      b[11],
+      b[12],
+      b[13],
+      b[14],
+      b[15]
+    ))
+  }
+
   /// Forget the web player's session (an app sign-out): the page asks to sign in again next time.
   @MainActor
   public static func clearCookies(in store: WKHTTPCookieStore) async {
@@ -89,7 +116,7 @@ public enum AlcoveWebSession {
 
 extension AlcoveWebSession {
   /// POST /auth/app-session with the app account's own Supabase token (the bearer its Request and Manage tabs send):
-  /// the web player's session for that same account (Alcove `worker/src/auth.js`, 7 days).
+  /// the web player's session for that same account (Alcove `worker/src/auth.js`, a day).
   public static func appSession(token: String) async throws -> String {
     var req = URLRequest(url: hostURL.appendingPathComponent("auth/app-session"))
     req.httpMethod = "POST"
@@ -100,7 +127,12 @@ extension AlcoveWebSession {
     if http.statusCode == 200, let session = json["session"] as? String,
        !session.isEmpty { return session }
     if http.statusCode == 403 { throw AlcoveAuthError.notLicensed }
-    throw AlcoveAuthError.badCredentials((json["error"] as? String) ?? "Sign in to the app again.")
+    // Only a refused token is a sign-in problem (the caller renews it once); anything else is the server's
+    if http.statusCode == 401 {
+      throw AlcoveAuthError
+        .badCredentials((json["error"] as? String) ?? "Sign in to the app again.")
+    }
+    throw AlcoveAuthError.unreachable
   }
 }
 
@@ -195,6 +227,15 @@ public enum AlcovePlayerBridge {
     case "all": .all
     default: .off
     }
+  }
+
+  /// Where playback starts among the songs found: the asked-for song, or the next one found after it when the app
+  /// could not find it (nil when none is). `found[i]` says whether the page's item i was found.
+  public static func startIndex(found: [Bool], asked: Int) -> Int? {
+    guard asked >= 0, asked < found.count, let at = found[asked...].firstIndex(of: true) else {
+      return found.contains(true) ? 0 : nil
+    }
+    return found[..<at].filter { $0 }.count
   }
 
   /// The snapshot as the page reads it: seconds, the queue's ids and where the current song is in them.

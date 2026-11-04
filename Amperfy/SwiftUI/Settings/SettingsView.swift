@@ -89,7 +89,7 @@ struct SettingsView: View {
             }
           },
           footer:
-          "Web adds a Player tab with Alcove's web player: the iPod or the standard player, switched inside it and kept for you on every device. It plays while the app is open; the native player keeps the lock screen and CarPlay."
+          "Web adds a Player tab with Alcove's web player: the iPod or the standard player, switched inside it and kept for you on every device. It plays through the app's player, so the lock screen, background play and CarPlay work as usual."
         )
 
         SettingsSection {

@@ -38,7 +38,7 @@ to the web and the Android app.
 
 - **Sign-in is the app account's** (`AmperfyKit/Api/AlcoveWebSession.swift`): the app sends its own Supabase token,
   the bearer the Request and Manage tabs already use, to `POST /auth/app-session` and sets the answer as the page's
-  `__Host-alcove_sid` cookie (7 days). It does that each time the tab loads and when the page links to `/auth/login`,
+  `__Host-alcove_sid` cookie (a day). It does that each time the tab loads and when the page links to `/auth/login`,
   and signing out of the account clears it. Needs the Worker route (Alcove PR 1).
 - **Playback is the app's player** (`AlcovePlayerBridge`): a script at document start gives the page
   `window.AlcovePlayer`, the contract the Android app provides, so both interfaces drive AmperfyKit's player and the
